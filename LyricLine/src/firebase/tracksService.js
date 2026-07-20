@@ -1,6 +1,6 @@
 import {
   collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc,
-  deleteDoc, serverTimestamp, runTransaction,
+  deleteDoc, serverTimestamp, runTransaction, updateDoc, increment,
 } from "firebase/firestore";
 import { db } from "./config";
 
@@ -13,6 +13,7 @@ export async function createTrack({ title, artist, artistUid, genre, tags, lines
     coverURL: coverURL || null,
     audioURL,
     likesCount: 0,
+    viewsCount: 0,
     createdAt: serverTimestamp(),
   });
   return ref.id;
@@ -27,6 +28,15 @@ export function watchTracks(callback, onError) {
     (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
     (err) => onError && onError(err)
   );
+}
+
+// Fire-and-forget view count bump, called once each time a track is opened
+// in the player. Not session-deduped — good enough for a prototype metric,
+// not meant to be abuse-resistant.
+export function recordTrackView(trackId) {
+  updateDoc(doc(db, TRACKS, trackId), { viewsCount: increment(1) }).catch(() => {
+    // Non-critical — a failed view bump shouldn't interrupt playback.
+  });
 }
 
 // Toggle a like for a track, atomically updating the denormalized count.

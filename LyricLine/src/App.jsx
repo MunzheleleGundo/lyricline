@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import {
   Mic2, Music4, Upload, Play, Pause, Plus, LogOut, User, Clock, Check,
   ListMusic, Link2, Unlink, Search, Heart, Image as ImageIcon, ChevronLeft,
-  TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers,
+  TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers, BarChart3,
 } from "lucide-react";
 import { FONT_IMPORT, COLORS } from "./theme/tokens";
 import Discover from "./pages/Discover";
@@ -15,7 +15,7 @@ import ArtistDashboard from "./pages/ArtistDashboard";
 import Community from "./pages/Community";
 import Sitemap from "./pages/Sitemap";
 import { signUp, signIn, signOut, watchAuth, friendlyAuthError } from "./firebase/authService";
-import { createTrack, watchTracks, toggleTrackLike, getMyLikeStatus } from "./firebase/tracksService";
+import { createTrack, watchTracks, toggleTrackLike, getMyLikeStatus, recordTrackView } from "./firebase/tracksService";
 import { uploadFile } from "./firebase/storageService";
 
 /*
@@ -662,6 +662,13 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
   const [duration, setDuration] = useState(0);
   const seeked = useRef(false);
 
+  // One real view per time this screen mounts for a track (i.e. per open,
+  // not per second of playback). Matches what the dashboard's "views" means.
+  useEffect(() => {
+    if (track?.id) recordTrackView(track.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track?.id]);
+
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
@@ -931,7 +938,7 @@ function TrackCard({ track, likeInfo, onOpen, onOpenArtist, onLike, matchedLine 
 }
 
 // ---------- Library / home ----------
-function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpenTrack, onOpenConnections, onOpenArtist, onLike, onOpenDiscover, onOpenAITools, onOpenSitemap }) {
+function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpenTrack, onOpenConnections, onOpenArtist, onLike, onOpenDiscover, onOpenAITools, onOpenSitemap, onOpenDashboard }) {
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("All");
   const [sort, setSort] = useState("recent"); // recent | trending
@@ -995,6 +1002,14 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
           >
             <Wand2 size={14} /> AI tools
           </button>
+          {user.role === "artist" && (
+            <button
+              onClick={onOpenDashboard}
+              style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <BarChart3 size={14} /> Dashboard
+            </button>
+          )}
           <button
             onClick={onOpenConnections}
             style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
@@ -1235,6 +1250,7 @@ export default function App() {
           onOpenDiscover={() => setView("discover")}
           onOpenAITools={() => setView("aitools")}
           onOpenSitemap={() => setView("sitemap")}
+          onOpenDashboard={() => setView("dashboard")}
           onOpenTrack={openTrackAt}
           onOpenArtist={(name) => {
             setOpenArtist(name);
@@ -1262,7 +1278,7 @@ export default function App() {
 
       {user && view === "songmeaning" && <SongMeaning onBack={() => setView("home")} />}
 
-      {user && view === "dashboard" && <ArtistDashboard onBack={() => setView("home")} />}
+      {user && view === "dashboard" && <ArtistDashboard onBack={() => setView("home")} tracks={tracks} user={user} />}
 
       {user && view === "community" && <Community onBack={() => setView("home")} />}
 

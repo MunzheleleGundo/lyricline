@@ -21,9 +21,8 @@ service cloud.firestore {
                     && (
                       // the owner can edit their own track...
                       resource.data.artistUid == request.auth.uid ||
-                      // ...or any signed-in user can update ONLY likesCount
-                      // (the actual like record below is what proves it)
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(["likesCount"])
+                      // ...or any signed-in user can bump view/like counters only
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(["likesCount", "viewsCount"])
                     );
       allow delete: if request.auth != null && resource.data.artistUid == request.auth.uid;
 
