@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Mic2, Music4, Upload, Play, Pause, Plus, LogOut, User, Clock, Check, ListMusic } from "lucide-react";
+import { Mic2, Music4, Upload, Play, Pause, Plus, LogOut, User, Clock, Check, ListMusic, Link2, Unlink } from "lucide-react";
 
 /*
   LyricLine — a self-publish synced-lyrics platform
@@ -26,6 +26,98 @@ function fmtTime(t) {
   const m = Math.floor(t / 60);
   const s = (t % 60).toFixed(2);
   return `${m}:${s.padStart(5, "0")}`;
+}
+
+// ---------- Connections (Spotify / Apple Music / YouTube Music) ----------
+// NOTE: This is UI only for now — no real OAuth is wired up yet.
+// To make a service actually connect later:
+//  - Spotify: register an app at developer.spotify.com, use Authorization Code + PKCE
+//    (client-side only, no secret needed). Put the client ID in VITE_SPOTIFY_CLIENT_ID.
+//  - Apple Music: needs MusicKit JS + a developer token, which must be signed server-side
+//    with your Apple Developer private key (can't be done purely client-side).
+//  - YouTube Music: no official public API for personal libraries; typically done via
+//    the YouTube Data API (different scope) or an unofficial library — treat as lowest priority.
+const MUSIC_SERVICES = [
+  { id: "spotify", name: "Spotify", color: "#1DB954", blurb: "Import saved tracks and match lyrics automatically." },
+  { id: "appleMusic", name: "Apple Music", color: "#FA586A", blurb: "Sync your library and now-playing lyrics." },
+  { id: "youtubeMusic", name: "YouTube Music", color: "#FF0000", blurb: "Pull in playlists to attach synced lyrics." },
+];
+
+function ServiceMark({ color }) {
+  return (
+    <div
+      style={{
+        width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+        background: `${color}22`, flexShrink: 0,
+      }}
+    >
+      <Music4 size={18} color={color} />
+    </div>
+  );
+}
+
+function ConnectionsPanel({ connections, onToggle, onBack }) {
+  return (
+    <div style={{ minHeight: "100vh", background: COLORS.ink, padding: "40px 24px" }}>
+      <div style={{ maxWidth: 560, margin: "0 auto" }}>
+        <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 24 }}>← Back</button>
+
+        <h1 style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: COLORS.cream, margin: "0 0 6px" }}>Connections</h1>
+        <p style={{ color: COLORS.plum, fontSize: 14, margin: "0 0 28px", lineHeight: 1.5 }}>
+          Link a streaming account to bring in tracks and match them with synced lyrics. This is a preview —
+          connecting here doesn't send any data anywhere yet.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {MUSIC_SERVICES.map((s) => {
+            const isConnected = !!connections[s.id];
+            return (
+              <div
+                key={s.id}
+                style={{
+                  display: "flex", alignItems: "center", gap: 14, padding: 18,
+                  background: COLORS.inkRaised, border: `1px solid ${isConnected ? s.color + "55" : COLORS.line}`,
+                  borderRadius: 12,
+                }}
+              >
+                <ServiceMark color={s.color} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.cream }}>{s.name}</div>
+                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, marginTop: 2 }}>
+                    {isConnected ? "Connected" : s.blurb}
+                  </div>
+                </div>
+                <button
+                  onClick={() => onToggle(s.id)}
+                  style={{
+                    padding: "8px 14px", borderRadius: 8, fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 700,
+                    display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+                    border: `1px solid ${isConnected ? COLORS.line : s.color}`,
+                    background: isConnected ? "transparent" : s.color,
+                    color: isConnected ? COLORS.plum : "#0B0D10",
+                  }}
+                >
+                  {isConnected ? (
+                    <>
+                      <Unlink size={13} /> Disconnect
+                    </>
+                  ) : (
+                    <>
+                      <Link2 size={13} /> Connect
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <p style={{ fontSize: 12, color: COLORS.plumDim, marginTop: 24, lineHeight: 1.6 }}>
+          Real account linking isn't set up yet — each service needs its own API credentials before this can log in for real.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 // ---------- Auth ----------
@@ -421,7 +513,8 @@ function PlayerScreen({ track, onBack }) {
 }
 
 // ---------- Library / home ----------
-function Home({ user, tracks, onLogout, onUploadStart, onOpenTrack }) {
+function Home({ user, tracks, connections, onLogout, onUploadStart, onOpenTrack, onOpenConnections }) {
+  const connectedCount = Object.values(connections).filter(Boolean).length;
   return (
     <div style={{ minHeight: "100vh", background: COLORS.ink }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px", borderBottom: `1px solid ${COLORS.line}` }}>
@@ -430,6 +523,12 @@ function Home({ user, tracks, onLogout, onUploadStart, onOpenTrack }) {
           <span style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: COLORS.cream }}>LyricLine</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <button
+            onClick={onOpenConnections}
+            style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <Link2 size={14} /> Connections{connectedCount > 0 ? ` (${connectedCount})` : ""}
+          </button>
           <div style={{ display: "flex", alignItems: "center", gap: 6, color: COLORS.plum, fontFamily: "Inter, sans-serif", fontSize: 13 }}>
             <User size={14} /> {user.name} · {user.role}
           </div>
@@ -485,10 +584,13 @@ function Home({ user, tracks, onLogout, onUploadStart, onOpenTrack }) {
 // ---------- Root ----------
 export default function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState("home"); // home | upload | sync | player
+  const [view, setView] = useState("home"); // home | upload | sync | player | connections
   const [tracks, setTracks] = useState([]);
   const [draftTrack, setDraftTrack] = useState(null);
   const [openTrack, setOpenTrack] = useState(null);
+  const [connections, setConnections] = useState({ spotify: false, appleMusic: false, youtubeMusic: false });
+
+  const toggleConnection = (id) => setConnections((prev) => ({ ...prev, [id]: !prev[id] }));
 
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
@@ -499,13 +601,19 @@ export default function App() {
         <Home
           user={user}
           tracks={tracks}
+          connections={connections}
           onLogout={() => setUser(null)}
           onUploadStart={() => setView("upload")}
+          onOpenConnections={() => setView("connections")}
           onOpenTrack={(t) => {
             setOpenTrack(t);
             setView("player");
           }}
         />
+      )}
+
+      {user && view === "connections" && (
+        <ConnectionsPanel connections={connections} onToggle={toggleConnection} onBack={() => setView("home")} />
       )}
 
       {user && view === "upload" && (
