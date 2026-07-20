@@ -14,6 +14,9 @@ import SongMeaning from "./pages/SongMeaning";
 import ArtistDashboard from "./pages/ArtistDashboard";
 import Community from "./pages/Community";
 import Sitemap from "./pages/Sitemap";
+import { signUp, signIn, signOut, watchAuth, friendlyAuthError } from "./firebase/authService";
+import { createTrack, watchTracks, toggleTrackLike, getMyLikeStatus } from "./firebase/tracksService";
+import { uploadFile } from "./firebase/storageService";
 
 /*
   LyricLine — a self-publish synced-lyrics platform
@@ -188,10 +191,36 @@ function LandingPage({ onGetStarted, trackCount, artistCount }) {
 }
 
 // ---------- Auth ----------
-function AuthScreen({ onSignIn, onBack }) {
-  const [mode] = useState("signin");
+function AuthScreen({ onBack }) {
+  const [mode, setMode] = useState("signin"); // signin | signup
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("artist");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const canSubmit =
+    email.trim() && password.trim().length >= 6 && (mode === "signin" || name.trim());
+
+  const submit = async () => {
+    if (!canSubmit || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (mode === "signup") {
+        await signUp({ name: name.trim(), email: email.trim(), password, role });
+      } else {
+        await signIn({ email: email.trim(), password });
+      }
+      // No manual navigation needed — the root App listens to Firebase auth
+      // state via watchAuth() and swaps screens once the session is live.
+    } catch (err) {
+      setError(friendlyAuthError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -204,6 +233,24 @@ function AuthScreen({ onSignIn, onBack }) {
           <span style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: COLORS.cream, letterSpacing: "-0.01em" }}>LyricLine</span>
         </div>
         <div style={{ background: COLORS.inkRaised, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: "clamp(20px, 5vw, 32px)" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+            {["signin", "signup"].map((m) => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setError(""); }}
+                style={{
+                  flex: 1, padding: "8px 0", borderRadius: 8, cursor: "pointer",
+                  border: `1px solid ${mode === m ? COLORS.gold : COLORS.line}`,
+                  background: mode === m ? "rgba(232,185,77,0.1)" : "transparent",
+                  color: mode === m ? COLORS.gold : COLORS.plum,
+                  fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 700,
+                }}
+              >
+                {m === "signin" ? "Sign in" : "Create account"}
+              </button>
+            ))}
+          </div>
+
           <h1 style={{ fontFamily: "Fraunces, serif", fontWeight: 600, fontSize: 22, color: COLORS.cream, margin: "0 0 6px" }}>
             {mode === "signin" ? "Welcome back" : "Set up your page"}
           </h1>
@@ -211,45 +258,77 @@ function AuthScreen({ onSignIn, onBack }) {
             Artists publish their own lyrics here — you keep the rights, you set the sync.
           </p>
 
-          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Your name</label>
+          {mode === "signup" && (
+            <>
+              <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Your name</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Rosa Winters"
+                style={{ ...inputStyle, marginBottom: 16 }}
+              />
+            </>
+          )}
+
+          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Email</label>
           <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Rosa Winters"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            style={{ ...inputStyle, marginBottom: 16 }}
+          />
+
+          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 6 characters"
             style={inputStyle}
           />
 
-          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, margin: "16px 0 6px", fontFamily: "Inter, sans-serif" }}>I am a...</label>
-          <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-            {["artist", "listener"].map((r) => (
-              <button
-                key={r}
-                onClick={() => setRole(r)}
-                style={{
-                  flex: 1, padding: "10px 12px", borderRadius: 9, cursor: "pointer",
-                  border: `1px solid ${role === r ? COLORS.gold : COLORS.line}`,
-                  background: role === r ? "rgba(232,185,77,0.12)" : "transparent",
-                  color: role === r ? COLORS.gold : COLORS.cream,
-                  fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, textTransform: "capitalize",
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
+          {mode === "signup" && (
+            <>
+              <label style={{ display: "block", fontSize: 12, color: COLORS.plum, margin: "16px 0 6px", fontFamily: "Inter, sans-serif" }}>I am a...</label>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                {["artist", "listener"].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRole(r)}
+                    style={{
+                      flex: 1, padding: "10px 12px", borderRadius: 9, cursor: "pointer",
+                      border: `1px solid ${role === r ? COLORS.gold : COLORS.line}`,
+                      background: role === r ? "rgba(232,185,77,0.12)" : "transparent",
+                      color: role === r ? COLORS.gold : COLORS.cream,
+                      fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, textTransform: "capitalize",
+                    }}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {error && (
+            <p style={{ color: "#E27D6B", fontSize: 12, margin: "16px 0 0", fontFamily: "Inter, sans-serif", lineHeight: 1.5 }}>
+              {error}
+            </p>
+          )}
 
           <button
-            disabled={!name.trim()}
-            onClick={() => onSignIn({ name: name.trim(), role })}
+            disabled={!canSubmit || busy}
+            onClick={submit}
             style={{
-              width: "100%", padding: "12px 0", borderRadius: 9, border: "none",
-              background: name.trim() ? COLORS.gold : COLORS.line,
-              color: name.trim() ? "#1C1608" : COLORS.plum,
+              width: "100%", padding: "12px 0", borderRadius: 9, border: "none", marginTop: 20,
+              background: canSubmit && !busy ? COLORS.gold : COLORS.line,
+              color: canSubmit && !busy ? "#1C1608" : COLORS.plum,
               fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 14,
-              cursor: name.trim() ? "pointer" : "not-allowed", transition: "opacity .15s",
+              cursor: canSubmit && !busy ? "pointer" : "not-allowed", transition: "opacity .15s",
             }}
           >
-            Continue
+            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
 
           <p style={{ textAlign: "center", marginTop: 18, fontSize: 12, color: COLORS.plum }}>
@@ -273,8 +352,10 @@ function UploadScreen({ onCreated, onCancel }) {
   const [artist, setArtist] = useState("");
   const [lyricsText, setLyricsText] = useState("");
   const [audioURL, setAudioURL] = useState(null);
+  const [audioFile, setAudioFile] = useState(null);
   const [audioName, setAudioName] = useState("");
   const [coverURL, setCoverURL] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
   const [genre, setGenre] = useState(GENRES[0]);
   const [tagsText, setTagsText] = useState("");
   const fileRef = useRef(null);
@@ -284,6 +365,7 @@ function UploadScreen({ onCreated, onCancel }) {
     const f = e.target.files?.[0];
     if (!f) return;
     setAudioURL(URL.createObjectURL(f));
+    setAudioFile(f);
     setAudioName(f.name);
   };
 
@@ -291,6 +373,7 @@ function UploadScreen({ onCreated, onCancel }) {
     const f = e.target.files?.[0];
     if (!f) return;
     setCoverURL(URL.createObjectURL(f));
+    setCoverFile(f);
   };
 
   const canContinue = title.trim() && artist.trim() && lyricsText.trim() && audioURL;
@@ -379,11 +462,11 @@ function UploadScreen({ onCreated, onCancel }) {
                 title: title.trim(),
                 artist: artist.trim(),
                 audioURL,
+                audioFile,
                 coverURL,
+                coverFile,
                 genre,
                 tags: tagsText.split(",").map((t) => t.trim()).filter(Boolean),
-                likes: 0,
-                likedByMe: false,
                 lines: lyricsText.split("\n").map((t) => t.trim()).filter(Boolean),
               })
             }
@@ -408,7 +491,7 @@ const ghostBtn = {
 };
 
 // ---------- Tap to sync ----------
-function SyncScreen({ track, onDone, onCancel }) {
+function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
@@ -525,15 +608,22 @@ function SyncScreen({ track, onDone, onCancel }) {
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
-          <button onClick={onCancel} style={ghostBtn}>Back</button>
+          <button onClick={onCancel} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.5 : 1 }}>Back</button>
           <button
-            disabled={!allTagged}
+            disabled={!allTagged || busy}
             onClick={() => onDone(timestamps)}
-            style={{ ...primaryBtn, flex: 1, minWidth: 180, opacity: allTagged ? 1 : 0.4, cursor: allTagged ? "pointer" : "not-allowed" }}
+            style={{ ...primaryBtn, flex: 1, minWidth: 180, opacity: allTagged && !busy ? 1 : 0.4, cursor: allTagged && !busy ? "pointer" : "not-allowed" }}
           >
-            {allTagged ? "Publish track" : `${timestamps.filter((t) => t !== null).length}/${track.lines.length} lines tagged`}
+            {busy
+              ? "Uploading & publishing…"
+              : allTagged
+              ? "Publish track"
+              : `${timestamps.filter((t) => t !== null).length}/${track.lines.length} lines tagged`}
           </button>
         </div>
+        {errorMessage && (
+          <p style={{ color: "#E27D6B", fontSize: 12, marginTop: 12, fontFamily: "Inter, sans-serif" }}>{errorMessage}</p>
+        )}
       </div>
     </div>
   );
@@ -647,7 +737,7 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
               color: likeInfo?.liked ? COLORS.gold : COLORS.cream,
             }}
           >
-            <Heart size={14} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likes ?? 0}
+            <Heart size={14} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likesCount ?? 0}
           </button>
         )}
       </div>
@@ -728,7 +818,7 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
 // ---------- Artist page ----------
 function ArtistPage({ artistName, tracks, onBack, onOpenTrack, likes }) {
   const artistTracks = tracks.filter((t) => t.artist === artistName);
-  const totalLikes = artistTracks.reduce((sum, t) => sum + (likes[t.id]?.likes ?? t.likes ?? 0), 0);
+  const totalLikes = artistTracks.reduce((sum, t) => sum + (likes[t.id]?.likes ?? t.likesCount ?? 0), 0);
   const cover = artistTracks.find((t) => t.coverURL)?.coverURL;
 
   return (
@@ -833,7 +923,7 @@ function TrackCard({ track, likeInfo, onOpen, onOpenArtist, onLike, matchedLine 
             fontFamily: "Inter, sans-serif", fontSize: 12,
           }}
         >
-          <Heart size={13} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likes ?? 0}
+          <Heart size={13} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likesCount ?? 0}
         </button>
       </div>
     </div>
@@ -867,8 +957,8 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
 
     list = [...list].sort((a, b) => {
       if (sort === "trending") {
-        const la = likes[a.id]?.likes ?? a.likes ?? 0;
-        const lb = likes[b.id]?.likes ?? b.likes ?? 0;
+        const la = likes[a.id]?.likes ?? a.likesCount ?? 0;
+        const lb = likes[b.id]?.likes ?? b.likesCount ?? 0;
         return lb - la;
       }
       return 0; // "recent" keeps publish order (array order), most recent last -> reverse below
@@ -1027,16 +1117,66 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
 
 // ---------- Root ----------
 export default function App() {
+  const [authChecked, setAuthChecked] = useState(false); // avoids landing-page flash on refresh
   const [entered, setEntered] = useState(false); // landing -> auth gate
-  const [user, setUser] = useState(null);
-  const [view, setView] = useState("home"); // home | upload | sync | player | connections | artist
+  const [user, setUser] = useState(null); // { uid, name, role }
+  const [view, setView] = useState("home");
   const [tracks, setTracks] = useState([]);
+  const [tracksError, setTracksError] = useState("");
   const [draftTrack, setDraftTrack] = useState(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
   const [openTrack, setOpenTrack] = useState(null);
   const [openArtist, setOpenArtist] = useState(null);
   const [initialSeek, setInitialSeek] = useState(undefined);
   const [connections, setConnections] = useState({ spotify: false, appleMusic: false, youtubeMusic: false });
-  const [likes, setLikes] = useState({}); // { [trackId]: { likes, liked } }
+  const [myLikedIds, setMyLikedIds] = useState({}); // { [trackId]: true } — this user's likes only
+
+  // Real session: Firebase persists the login, so refreshing the page keeps you signed in.
+  useEffect(() => {
+    const unsub = watchAuth((u) => {
+      setUser(u);
+      setAuthChecked(true);
+      if (u) setEntered(true);
+    });
+    return unsub;
+  }, []);
+
+  // Realtime catalog: every signed-in user sees the same live Firestore data.
+  useEffect(() => {
+    if (!user) {
+      setTracks([]);
+      return;
+    }
+    const unsub = watchTracks(
+      (list) => setTracks(list),
+      (err) => setTracksError(err.message || "Couldn't load the catalog.")
+    );
+    return unsub;
+  }, [user]);
+
+  // Refresh "did I like this" flags whenever the visible track list changes.
+  useEffect(() => {
+    if (!user || tracks.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        tracks.map(async (t) => [t.id, await getMyLikeStatus(t.id, user.uid)])
+      );
+      if (!cancelled) {
+        setMyLikedIds(Object.fromEntries(entries.filter(([, liked]) => liked)));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, tracks]);
+
+  const likes = useMemo(() => {
+    const map = {};
+    for (const t of tracks) {
+      map[t.id] = { likes: t.likesCount ?? 0, liked: !!myLikedIds[t.id] };
+    }
+    return map;
+  }, [tracks, myLikedIds]);
 
   const toggleConnection = (id) => setConnections((prev) => ({ ...prev, [id]: !prev[id] }));
 
@@ -1046,15 +1186,29 @@ export default function App() {
     setView("player");
   };
 
-  const toggleLike = (trackId) => {
-    setLikes((prev) => {
-      const cur = prev[trackId] || { likes: tracks.find((t) => t.id === trackId)?.likes ?? 0, liked: false };
-      const liked = !cur.liked;
-      return { ...prev, [trackId]: { likes: cur.likes + (liked ? 1 : -1), liked } };
-    });
+  const toggleLike = async (trackId) => {
+    if (!user) return;
+    // Optimistic UI, then reconcile with the real transaction result.
+    setMyLikedIds((prev) => ({ ...prev, [trackId]: !prev[trackId] }));
+    try {
+      const result = await toggleTrackLike(trackId, user.uid);
+      setMyLikedIds((prev) => ({ ...prev, [trackId]: result.liked }));
+    } catch (err) {
+      // Roll back on failure (e.g. offline, track deleted).
+      setMyLikedIds((prev) => ({ ...prev, [trackId]: !prev[trackId] }));
+    }
   };
 
   const artistCount = new Set(tracks.map((t) => t.artist)).size;
+
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <style>{FONT_IMPORT}</style>
+        <span style={{ fontFamily: "Inter, sans-serif", color: COLORS.plum, fontSize: 13 }}>Loading…</span>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
@@ -1064,7 +1218,7 @@ export default function App() {
         <LandingPage onGetStarted={() => setEntered(true)} trackCount={tracks.length} artistCount={artistCount} />
       )}
 
-      {!user && entered && <AuthScreen onSignIn={setUser} onBack={() => setEntered(false)} />}
+      {!user && entered && <AuthScreen onBack={() => setEntered(false)} />}
 
       {user && view === "home" && (
         <Home
@@ -1073,8 +1227,7 @@ export default function App() {
           likes={likes}
           connections={connections}
           onLogout={() => {
-            setUser(null);
-            setEntered(false);
+            signOut();
             setView("home");
           }}
           onUploadStart={() => setView("upload")}
@@ -1089,6 +1242,12 @@ export default function App() {
           }}
           onLike={toggleLike}
         />
+      )}
+
+      {tracksError && view === "home" && (
+        <div style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", background: COLORS.inkRaised, border: "1px solid #E27D6B", color: "#E27D6B", padding: "10px 16px", borderRadius: 9, fontFamily: "Inter, sans-serif", fontSize: 12 }}>
+          {tracksError}
+        </div>
       )}
 
       {user && view === "discover" && <Discover onBack={() => setView("home")} />}
@@ -1130,6 +1289,7 @@ export default function App() {
           onCancel={() => setView("home")}
           onCreated={(t) => {
             setDraftTrack(t);
+            setPublishError("");
             setView("sync");
           }}
         />
@@ -1139,11 +1299,38 @@ export default function App() {
         <SyncScreen
           track={draftTrack}
           onCancel={() => setView("upload")}
-          onDone={(timestamps) => {
-            const finished = { ...draftTrack, timestamps };
-            setTracks((prev) => [...prev, finished]);
-            openTrackAt(finished, undefined);
-            setDraftTrack(null);
+          busy={publishing}
+          errorMessage={publishError}
+          onDone={async (timestamps) => {
+            setPublishing(true);
+            setPublishError("");
+            try {
+              // Real upload: audio (required) and cover (optional) go to
+              // Firebase Storage, then the track document goes to Firestore.
+              const audioURL = await uploadFile(user.uid, "audio", draftTrack.audioFile);
+              const coverURL = draftTrack.coverFile
+                ? await uploadFile(user.uid, "covers", draftTrack.coverFile)
+                : null;
+
+              const id = await createTrack({
+                title: draftTrack.title,
+                artist: draftTrack.artist,
+                artistUid: user.uid,
+                genre: draftTrack.genre,
+                tags: draftTrack.tags,
+                lines: draftTrack.lines,
+                timestamps,
+                coverURL,
+                audioURL,
+              });
+
+              openTrackAt({ ...draftTrack, id, audioURL, coverURL, timestamps, likesCount: 0 }, undefined);
+              setDraftTrack(null);
+            } catch (err) {
+              setPublishError(err.message || "Publishing failed. Please try again.");
+            } finally {
+              setPublishing(false);
+            }
           }}
         />
       )}
