@@ -20,8 +20,8 @@ async function authedFetch(path, options = {}) {
   return data;
 }
 
-export async function searchSpotify(query) {
-  const data = await authedFetch(`spotifySearch?q=${encodeURIComponent(query)}`);
+export async function searchYouTube(query) {
+  const data = await authedFetch(`youtubeSearch?q=${encodeURIComponent(query)}`);
   return data.results || [];
 }
 

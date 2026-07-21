@@ -6,12 +6,11 @@ const cors = require("cors")({ origin: true });
 
 admin.initializeApp();
 
-const SPOTIFY_CLIENT_ID = defineSecret("SPOTIFY_CLIENT_ID");
-const SPOTIFY_CLIENT_SECRET = defineSecret("SPOTIFY_CLIENT_SECRET");
+const YOUTUBE_API_KEY = defineSecret("YOUTUBE_API_KEY");
 const ASSEMBLYAI_API_KEY = defineSecret("ASSEMBLYAI_API_KEY");
 
 // Requires the caller to be a signed-in LyricLine user — these calls cost
-// real money per request, so anonymous/public access is not allowed.
+// real money/quota per request, so anonymous/public access is not allowed.
 async function requireAuth(req) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
@@ -27,61 +26,43 @@ function withCors(handler) {
   return (req, res) => cors(req, res, () => handler(req, res));
 }
 
-// ---------- Spotify catalog search (Client Credentials flow) ----------
-// No user login needed — this authenticates as the APP itself, which is
-// enough to search Spotify's public catalog for title/artist/cover art.
-let cachedToken = null; // { value, expiresAt }
-
-async function getSpotifyToken(clientId, clientSecret) {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 5000) {
-    return cachedToken.value;
-  }
-  const resp = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: "Basic " + Buffer.from(`${clientId}:${clientSecret}`).toString("base64"),
-    },
-    body: "grant_type=client_credentials",
-  });
-  if (!resp.ok) throw new Error(`Spotify token request failed: ${resp.status}`);
-  const data = await resp.json();
-  cachedToken = { value: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 };
-  return cachedToken.value;
-}
-
-exports.spotifySearch = onRequest(
-  { secrets: [SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET], cors: true },
+// ---------- YouTube metadata search ----------
+// Free tier (no billing needed for normal usage, ~10k quota units/day).
+// This is video metadata, not authoritative music metadata: "artist" is
+// really the channel name, which is often but not always the actual artist.
+// Labeled honestly in the UI rather than presented as verified song data.
+exports.youtubeSearch = onRequest(
+  { secrets: [YOUTUBE_API_KEY], cors: true },
   withCors(async (req, res) => {
     try {
       await requireAuth(req);
       const q = (req.query.q || "").toString().trim();
       if (!q) return res.status(400).json({ error: "Missing ?q= search text." });
 
-      const token = await getSpotifyToken(SPOTIFY_CLIENT_ID.value(), SPOTIFY_CLIENT_SECRET.value());
-      const searchResp = await fetch(
-        `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=6`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!searchResp.ok) throw new Error(`Spotify search failed: ${searchResp.status}`);
-      const data = await searchResp.json();
+      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=6&q=${encodeURIComponent(q)}&key=${YOUTUBE_API_KEY.value()}`;
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new Error(`YouTube search failed: ${resp.status} ${body}`);
+      }
+      const data = await resp.json();
 
-      const results = (data.tracks?.items || []).map((t) => ({
-        spotifyId: t.id,
-        title: t.name,
-        artist: t.artists.map((a) => a.name).join(", "),
-        album: t.album?.name || "",
-        coverURL: t.album?.images?.[0]?.url || null,
-        releaseDate: t.album?.release_date || null,
+      const results = (data.items || []).map((item) => ({
+        videoId: item.id.videoId,
+        title: item.snippet.title,
+        channelTitle: item.snippet.channelTitle,
+        coverURL: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || null,
+        publishedAt: item.snippet.publishedAt,
       }));
 
       res.json({ results });
     } catch (err) {
-      logger.error("spotifySearch failed", err);
+      logger.error("youtubeSearch failed", err);
       res.status(err.status || 500).json({ error: err.message || "Search failed." });
     }
   })
 );
+
 
 // ---------- Lyric auto-align (AssemblyAI word timestamps + text matching) ----------
 // Given a public audio URL and the artist's own typed lyric lines, this

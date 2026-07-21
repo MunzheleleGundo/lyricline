@@ -18,7 +18,7 @@ import LyricVideoStudio from "./pages/LyricVideoStudio";
 import { signUp, signIn, signOut, watchAuth, friendlyAuthError } from "./firebase/authService";
 import { createTrack, watchTracks, toggleTrackLike, getMyLikeStatus, recordTrackView } from "./firebase/tracksService";
 import { uploadFile } from "./firebase/storageService";
-import { searchSpotify, autoAlignLyrics } from "./firebase/functionsClient";
+import { searchYouTube, autoAlignLyrics } from "./firebase/functionsClient";
 
 /*
   LyricLine — a self-publish synced-lyrics platform
@@ -363,32 +363,32 @@ function UploadScreen({ onCreated, onCancel }) {
   const fileRef = useRef(null);
   const coverRef = useRef(null);
 
-  const [spotifyQuery, setSpotifyQuery] = useState("");
-  const [spotifyResults, setSpotifyResults] = useState([]);
-  const [spotifySearching, setSpotifySearching] = useState(false);
-  const [spotifyError, setSpotifyError] = useState("");
+  const [ytQuery, setYtQuery] = useState("");
+  const [ytResults, setYtResults] = useState([]);
+  const [ytSearching, setYtSearching] = useState(false);
+  const [ytError, setYtError] = useState("");
 
-  const runSpotifySearch = async () => {
-    if (!spotifyQuery.trim()) return;
-    setSpotifySearching(true);
-    setSpotifyError("");
+  const runYouTubeSearch = async () => {
+    if (!ytQuery.trim()) return;
+    setYtSearching(true);
+    setYtError("");
     try {
-      const results = await searchSpotify(spotifyQuery.trim());
-      setSpotifyResults(results);
-      if (results.length === 0) setSpotifyError("No matches found — try a different search.");
+      const results = await searchYouTube(ytQuery.trim());
+      setYtResults(results);
+      if (results.length === 0) setYtError("No matches found — try a different search.");
     } catch (err) {
-      setSpotifyError(err.message || "Spotify search failed.");
+      setYtError(err.message || "YouTube search failed.");
     } finally {
-      setSpotifySearching(false);
+      setYtSearching(false);
     }
   };
 
-  const applySpotifyResult = (r) => {
+  const applyYouTubeResult = (r) => {
     setTitle(r.title);
-    setArtist(r.artist);
+    setArtist(r.channelTitle); // channel name — often the artist, but not guaranteed
     if (r.coverURL) setCoverURL(r.coverURL); // external URL — no coverFile, so nothing to upload
-    setSpotifyResults([]);
-    setSpotifyQuery("");
+    setYtResults([]);
+    setYtQuery("");
   };
 
   const handleFile = (e) => {
@@ -415,46 +415,48 @@ function UploadScreen({ onCreated, onCancel }) {
         <p style={{ color: COLORS.plum, fontSize: 14, margin: "0 0 32px" }}>Add your song, then paste the lyrics line by line. You'll sync timestamps next.</p>
 
         <div style={{ ...cardStyle, padding: 16, marginBottom: 20 }}>
-          <label style={labelStyle}>Fill from Spotify (optional)</label>
+          <label style={labelStyle}>Fill from YouTube (optional)</label>
           <div style={{ display: "flex", gap: 8 }}>
             <input
-              value={spotifyQuery}
-              onChange={(e) => setSpotifyQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && runSpotifySearch()}
+              value={ytQuery}
+              onChange={(e) => setYtQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runYouTubeSearch()}
               placeholder="Search by song or artist name"
               style={{ ...inputStyle, flex: 1 }}
             />
-            <button onClick={runSpotifySearch} disabled={spotifySearching} style={{ ...ghostBtn, opacity: spotifySearching ? 0.6 : 1, whiteSpace: "nowrap" }}>
-              {spotifySearching ? "Searching…" : "Search"}
+            <button onClick={runYouTubeSearch} disabled={ytSearching} style={{ ...ghostBtn, opacity: ytSearching ? 0.6 : 1, whiteSpace: "nowrap" }}>
+              {ytSearching ? "Searching…" : "Search"}
             </button>
           </div>
-          {spotifyError && <p style={{ color: "#E27D6B", fontSize: 12, marginTop: 8 }}>{spotifyError}</p>}
-          {spotifyResults.length > 0 && (
+          {ytError && <p style={{ color: "#E27D6B", fontSize: 12, marginTop: 8 }}>{ytError}</p>}
+          {ytResults.length > 0 && (
             <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-              {spotifyResults.map((r) => (
+              {ytResults.map((r) => (
                 <button
-                  key={r.spotifyId}
-                  onClick={() => applySpotifyResult(r)}
+                  key={r.videoId}
+                  onClick={() => applyYouTubeResult(r)}
                   style={{
                     display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: 8, cursor: "pointer",
                     background: "rgba(232,185,77,0.05)", border: `1px solid ${COLORS.line}`, textAlign: "left",
                   }}
                 >
                   {r.coverURL ? (
-                    <img src={r.coverURL} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />
+                    <img src={r.coverURL} alt="" style={{ width: 48, height: 27, borderRadius: 6, objectFit: "cover" }} />
                   ) : (
-                    <div style={{ width: 36, height: 36, borderRadius: 6, background: COLORS.line }} />
+                    <div style={{ width: 48, height: 27, borderRadius: 6, background: COLORS.line }} />
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: COLORS.cream, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
-                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.artist}</div>
+                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.channelTitle}</div>
                   </div>
                 </button>
               ))}
             </div>
           )}
           <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: COLORS.plumDim, marginTop: 8, marginBottom: 0 }}>
-            Fills in title, artist, and cover art. Lyrics still need to be your own typed text — this doesn't pull lyrics from anywhere.
+            Pulls the video title, channel name, and thumbnail — this is YouTube video metadata, not
+            verified music data, so double-check the artist field before publishing. Lyrics still need
+            to be your own typed text.
           </p>
         </div>
 
