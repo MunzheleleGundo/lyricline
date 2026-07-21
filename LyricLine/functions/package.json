@@ -1,7 +1,7 @@
 {
   "name": "lyricline-functions",
   "description": "Server-side proxy functions for LyricLine — keeps third-party API secrets off the client.",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
