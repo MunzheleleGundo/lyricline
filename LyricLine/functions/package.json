@@ -1,0 +1,17 @@
+{
+  "name": "lyricline-functions",
+  "description": "Server-side proxy functions for LyricLine — keeps third-party API secrets off the client.",
+  "engines": { "node": "22" },
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.1.0"
+  }
+}

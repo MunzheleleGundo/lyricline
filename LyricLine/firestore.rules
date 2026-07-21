@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can read any profile, but only write their own.
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // Anyone can read the catalog. Only signed-in users can publish, and
+    // only as themselves (artistUid must match their own uid). Edits/deletes
+    // are restricted to the track's original publisher.
+    match /tracks/{trackId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.data.artistUid == request.auth.uid;
+      allow update: if request.auth != null
+                    && (
+                      // the owner can edit their own track...
+                      resource.data.artistUid == request.auth.uid ||
+                      // ...or any signed-in user can bump view/like counters only
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(["likesCount", "viewsCount"])
+                    );
+      allow delete: if request.auth != null && resource.data.artistUid == request.auth.uid;
+
+      // A user can only create/delete their own like record.
+      match /likedBy/{uid} {
+        allow read: if true;
+        allow create: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+        allow update: if false;
+      }
+    }
+  }
+}

@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import {
   Mic2, Music4, Upload, Play, Pause, Plus, LogOut, User, Clock, Check,
   ListMusic, Link2, Unlink, Search, Heart, Image as ImageIcon, ChevronLeft,
-  TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers,
+  TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers, BarChart3, Video, Loader2,
 } from "lucide-react";
-import { FONT_IMPORT, COLORS } from "./theme/tokens";
+import { FONT_IMPORT, COLORS, cardStyle } from "./theme/tokens";
 import Discover from "./pages/Discover";
 import AITools from "./pages/AITools";
 import Pricing from "./pages/Pricing";
@@ -14,6 +14,11 @@ import SongMeaning from "./pages/SongMeaning";
 import ArtistDashboard from "./pages/ArtistDashboard";
 import Community from "./pages/Community";
 import Sitemap from "./pages/Sitemap";
+import LyricVideoStudio from "./pages/LyricVideoStudio";
+import { signUp, signIn, signOut, watchAuth, friendlyAuthError } from "./firebase/authService";
+import { createTrack, watchTracks, toggleTrackLike, getMyLikeStatus, recordTrackView } from "./firebase/tracksService";
+import { uploadFile } from "./firebase/storageService";
+import { searchYouTube, autoAlignLyrics } from "./firebase/functionsClient";
 
 /*
   LyricLine — a self-publish synced-lyrics platform
@@ -188,10 +193,36 @@ function LandingPage({ onGetStarted, trackCount, artistCount }) {
 }
 
 // ---------- Auth ----------
-function AuthScreen({ onSignIn, onBack }) {
-  const [mode] = useState("signin");
+function AuthScreen({ onBack }) {
+  const [mode, setMode] = useState("signin"); // signin | signup
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("artist");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const canSubmit =
+    email.trim() && password.trim().length >= 6 && (mode === "signin" || name.trim());
+
+  const submit = async () => {
+    if (!canSubmit || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (mode === "signup") {
+        await signUp({ name: name.trim(), email: email.trim(), password, role });
+      } else {
+        await signIn({ email: email.trim(), password });
+      }
+      // No manual navigation needed — the root App listens to Firebase auth
+      // state via watchAuth() and swaps screens once the session is live.
+    } catch (err) {
+      setError(friendlyAuthError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -204,6 +235,24 @@ function AuthScreen({ onSignIn, onBack }) {
           <span style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: COLORS.cream, letterSpacing: "-0.01em" }}>LyricLine</span>
         </div>
         <div style={{ background: COLORS.inkRaised, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: "clamp(20px, 5vw, 32px)" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+            {["signin", "signup"].map((m) => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setError(""); }}
+                style={{
+                  flex: 1, padding: "8px 0", borderRadius: 8, cursor: "pointer",
+                  border: `1px solid ${mode === m ? COLORS.gold : COLORS.line}`,
+                  background: mode === m ? "rgba(232,185,77,0.1)" : "transparent",
+                  color: mode === m ? COLORS.gold : COLORS.plum,
+                  fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 700,
+                }}
+              >
+                {m === "signin" ? "Sign in" : "Create account"}
+              </button>
+            ))}
+          </div>
+
           <h1 style={{ fontFamily: "Fraunces, serif", fontWeight: 600, fontSize: 22, color: COLORS.cream, margin: "0 0 6px" }}>
             {mode === "signin" ? "Welcome back" : "Set up your page"}
           </h1>
@@ -211,45 +260,77 @@ function AuthScreen({ onSignIn, onBack }) {
             Artists publish their own lyrics here — you keep the rights, you set the sync.
           </p>
 
-          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Your name</label>
+          {mode === "signup" && (
+            <>
+              <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Your name</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Rosa Winters"
+                style={{ ...inputStyle, marginBottom: 16 }}
+              />
+            </>
+          )}
+
+          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Email</label>
           <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Rosa Winters"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            style={{ ...inputStyle, marginBottom: 16 }}
+          />
+
+          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 6 characters"
             style={inputStyle}
           />
 
-          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, margin: "16px 0 6px", fontFamily: "Inter, sans-serif" }}>I am a...</label>
-          <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-            {["artist", "listener"].map((r) => (
-              <button
-                key={r}
-                onClick={() => setRole(r)}
-                style={{
-                  flex: 1, padding: "10px 12px", borderRadius: 9, cursor: "pointer",
-                  border: `1px solid ${role === r ? COLORS.gold : COLORS.line}`,
-                  background: role === r ? "rgba(232,185,77,0.12)" : "transparent",
-                  color: role === r ? COLORS.gold : COLORS.cream,
-                  fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, textTransform: "capitalize",
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
+          {mode === "signup" && (
+            <>
+              <label style={{ display: "block", fontSize: 12, color: COLORS.plum, margin: "16px 0 6px", fontFamily: "Inter, sans-serif" }}>I am a...</label>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                {["artist", "listener"].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRole(r)}
+                    style={{
+                      flex: 1, padding: "10px 12px", borderRadius: 9, cursor: "pointer",
+                      border: `1px solid ${role === r ? COLORS.gold : COLORS.line}`,
+                      background: role === r ? "rgba(232,185,77,0.12)" : "transparent",
+                      color: role === r ? COLORS.gold : COLORS.cream,
+                      fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, textTransform: "capitalize",
+                    }}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {error && (
+            <p style={{ color: "#E27D6B", fontSize: 12, margin: "16px 0 0", fontFamily: "Inter, sans-serif", lineHeight: 1.5 }}>
+              {error}
+            </p>
+          )}
 
           <button
-            disabled={!name.trim()}
-            onClick={() => onSignIn({ name: name.trim(), role })}
+            disabled={!canSubmit || busy}
+            onClick={submit}
             style={{
-              width: "100%", padding: "12px 0", borderRadius: 9, border: "none",
-              background: name.trim() ? COLORS.gold : COLORS.line,
-              color: name.trim() ? "#1C1608" : COLORS.plum,
+              width: "100%", padding: "12px 0", borderRadius: 9, border: "none", marginTop: 20,
+              background: canSubmit && !busy ? COLORS.gold : COLORS.line,
+              color: canSubmit && !busy ? "#1C1608" : COLORS.plum,
               fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 14,
-              cursor: name.trim() ? "pointer" : "not-allowed", transition: "opacity .15s",
+              cursor: canSubmit && !busy ? "pointer" : "not-allowed", transition: "opacity .15s",
             }}
           >
-            Continue
+            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
 
           <p style={{ textAlign: "center", marginTop: 18, fontSize: 12, color: COLORS.plum }}>
@@ -273,17 +354,48 @@ function UploadScreen({ onCreated, onCancel }) {
   const [artist, setArtist] = useState("");
   const [lyricsText, setLyricsText] = useState("");
   const [audioURL, setAudioURL] = useState(null);
+  const [audioFile, setAudioFile] = useState(null);
   const [audioName, setAudioName] = useState("");
   const [coverURL, setCoverURL] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
   const [genre, setGenre] = useState(GENRES[0]);
   const [tagsText, setTagsText] = useState("");
   const fileRef = useRef(null);
   const coverRef = useRef(null);
 
+  const [ytQuery, setYtQuery] = useState("");
+  const [ytResults, setYtResults] = useState([]);
+  const [ytSearching, setYtSearching] = useState(false);
+  const [ytError, setYtError] = useState("");
+
+  const runYouTubeSearch = async () => {
+    if (!ytQuery.trim()) return;
+    setYtSearching(true);
+    setYtError("");
+    try {
+      const results = await searchYouTube(ytQuery.trim());
+      setYtResults(results);
+      if (results.length === 0) setYtError("No matches found — try a different search.");
+    } catch (err) {
+      setYtError(err.message || "YouTube search failed.");
+    } finally {
+      setYtSearching(false);
+    }
+  };
+
+  const applyYouTubeResult = (r) => {
+    setTitle(r.title);
+    setArtist(r.channelTitle); // channel name — often the artist, but not guaranteed
+    if (r.coverURL) setCoverURL(r.coverURL); // external URL — no coverFile, so nothing to upload
+    setYtResults([]);
+    setYtQuery("");
+  };
+
   const handleFile = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
     setAudioURL(URL.createObjectURL(f));
+    setAudioFile(f);
     setAudioName(f.name);
   };
 
@@ -291,6 +403,7 @@ function UploadScreen({ onCreated, onCancel }) {
     const f = e.target.files?.[0];
     if (!f) return;
     setCoverURL(URL.createObjectURL(f));
+    setCoverFile(f);
   };
 
   const canContinue = title.trim() && artist.trim() && lyricsText.trim() && audioURL;
@@ -300,6 +413,52 @@ function UploadScreen({ onCreated, onCancel }) {
       <div style={{ maxWidth: 640, margin: "0 auto" }}>
         <h1 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(24px, 4vw, 30px)", color: COLORS.cream, margin: "0 0 6px" }}>Publish a track</h1>
         <p style={{ color: COLORS.plum, fontSize: 14, margin: "0 0 32px" }}>Add your song, then paste the lyrics line by line. You'll sync timestamps next.</p>
+
+        <div style={{ ...cardStyle, padding: 16, marginBottom: 20 }}>
+          <label style={labelStyle}>Fill from YouTube (optional)</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={ytQuery}
+              onChange={(e) => setYtQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runYouTubeSearch()}
+              placeholder="Search by song or artist name"
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <button onClick={runYouTubeSearch} disabled={ytSearching} style={{ ...ghostBtn, opacity: ytSearching ? 0.6 : 1, whiteSpace: "nowrap" }}>
+              {ytSearching ? "Searching…" : "Search"}
+            </button>
+          </div>
+          {ytError && <p style={{ color: "#E27D6B", fontSize: 12, marginTop: 8 }}>{ytError}</p>}
+          {ytResults.length > 0 && (
+            <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+              {ytResults.map((r) => (
+                <button
+                  key={r.videoId}
+                  onClick={() => applyYouTubeResult(r)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: 8, cursor: "pointer",
+                    background: "rgba(232,185,77,0.05)", border: `1px solid ${COLORS.line}`, textAlign: "left",
+                  }}
+                >
+                  {r.coverURL ? (
+                    <img src={r.coverURL} alt="" style={{ width: 48, height: 27, borderRadius: 6, objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: 48, height: 27, borderRadius: 6, background: COLORS.line }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: COLORS.cream, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
+                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.channelTitle}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: COLORS.plumDim, marginTop: 8, marginBottom: 0 }}>
+            Pulls the video title, channel name, and thumbnail — this is YouTube video metadata, not
+            verified music data, so double-check the artist field before publishing. Lyrics still need
+            to be your own typed text.
+          </p>
+        </div>
 
         <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
           <div
@@ -379,11 +538,11 @@ function UploadScreen({ onCreated, onCancel }) {
                 title: title.trim(),
                 artist: artist.trim(),
                 audioURL,
+                audioFile,
                 coverURL,
+                coverFile,
                 genre,
                 tags: tagsText.split(",").map((t) => t.trim()).filter(Boolean),
-                likes: 0,
-                likedByMe: false,
                 lines: lyricsText.split("\n").map((t) => t.trim()).filter(Boolean),
               })
             }
@@ -407,13 +566,49 @@ const ghostBtn = {
   fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer",
 };
 
+// ---------- Upload files, then hand off to sync ----------
+function PreparingScreen({ onDone, onError, uploadAudio, uploadCover, draftTrack }) {
+  const [status, setStatus] = useState("Uploading audio…");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const audioURL = await uploadAudio();
+        if (cancelled) return;
+        let coverURL = draftTrack.coverURL || null; // keep Spotify-picked cover if present
+        if (uploadCover) {
+          setStatus("Uploading cover art…");
+          coverURL = await uploadCover();
+        }
+        if (cancelled) return;
+        onDone({ ...draftTrack, audioURL, coverURL });
+      } catch (err) {
+        if (!cancelled) onError(err.message || "Upload failed. Please try again.");
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div style={{ width: 28, height: 28, border: `3px solid ${COLORS.line}`, borderTopColor: COLORS.gold, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: COLORS.plum }}>{status}</p>
+    </div>
+  );
+}
+
+
 // ---------- Tap to sync ----------
-function SyncScreen({ track, onDone, onCancel }) {
+function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [timestamps, setTimestamps] = useState(Array(track.lines.length).fill(null));
   const [activeIdx, setActiveIdx] = useState(0);
+  const [rate, setRate] = useState(1);
+  const [flash, setFlash] = useState(false);
 
   useEffect(() => {
     const a = audioRef.current;
@@ -428,12 +623,21 @@ function SyncScreen({ track, onDone, onCancel }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = rate;
+  }, [rate]);
+
   const togglePlay = () => {
     const a = audioRef.current;
     if (!a) return;
     if (playing) a.pause();
     else a.play();
     setPlaying(!playing);
+  };
+
+  const pulse = () => {
+    setFlash(true);
+    setTimeout(() => setFlash(false), 120);
   };
 
   const tapLine = useCallback(() => {
@@ -444,7 +648,22 @@ function SyncScreen({ track, onDone, onCancel }) {
       return next;
     });
     setActiveIdx((i) => Math.min(i + 1, track.lines.length));
+    pulse();
   }, [activeIdx, track.lines.length]);
+
+  // Undo the most recent tap — much easier than reaching for the mouse to
+  // fix a single mistimed line mid-flow.
+  const undoLastTap = useCallback(() => {
+    setActiveIdx((i) => {
+      const prevIdx = Math.max(0, i - 1);
+      setTimestamps((prevTs) => {
+        const next = [...prevTs];
+        next[prevIdx] = null;
+        return next;
+      });
+      return prevIdx;
+    });
+  }, []);
 
   // allow re-tapping a single mistimed line without redoing the rest
   const retapLine = useCallback((idx) => {
@@ -454,6 +673,18 @@ function SyncScreen({ track, onDone, onCancel }) {
       return next;
     });
     setActiveIdx(idx + 1);
+    pulse();
+  }, []);
+
+  // Fine-tune a single line's timestamp by a small offset without
+  // replaying — for the "close but not quite" case.
+  const nudgeLine = useCallback((idx, deltaSec) => {
+    setTimestamps((prev) => {
+      if (prev[idx] === null) return prev;
+      const next = [...prev];
+      next[idx] = Math.max(0, +(next[idx] + deltaSec).toFixed(2));
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -461,23 +692,80 @@ function SyncScreen({ track, onDone, onCancel }) {
       if (e.code === "Space") {
         e.preventDefault();
         tapLine();
+      } else if (e.code === "Backspace" || e.code === "KeyZ") {
+        e.preventDefault();
+        undoLastTap();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tapLine]);
+  }, [tapLine, undoLastTap]);
 
   const allTagged = timestamps.every((t) => t !== null);
+  const RATES = [0.5, 0.75, 1];
+  const [autoSyncing, setAutoSyncing] = useState(false);
+  const [autoSyncError, setAutoSyncError] = useState("");
+
+  const runAutoSync = async () => {
+    setAutoSyncing(true);
+    setAutoSyncError("");
+    try {
+      const result = await autoAlignLyrics(track.audioURL, track.lines);
+      setTimestamps(result);
+      setActiveIdx(track.lines.length); // mark everything as tagged
+    } catch (err) {
+      setAutoSyncError(err.message || "Auto-sync failed — try tapping manually instead.");
+    } finally {
+      setAutoSyncing(false);
+    }
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: COLORS.ink, padding: "clamp(24px, 6vw, 40px) 20px", display: "flex", flexDirection: "column", alignItems: "center" }}>
       <audio ref={audioRef} src={track.audioURL} />
       <div style={{ width: "100%", maxWidth: 560 }}>
         <h1 style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: COLORS.cream, margin: "0 0 4px" }}>Tap to sync</h1>
-        <p style={{ color: COLORS.plum, fontSize: 13, margin: "0 0 24px" }}>
-          Play the track. Press <b style={{ color: COLORS.gold }}>Space</b> or tap the button exactly when each line begins.
-          Already tagged a line wrong? Click its timestamp to re-tap it.
+        <p style={{ color: COLORS.plum, fontSize: 13, margin: "0 0 16px" }}>
+          Press <b style={{ color: COLORS.gold }}>Space</b> when each line starts, or let auto-sync take a first
+          pass and just fix any lines that land wrong.
         </p>
+
+        <div style={{ ...cardStyle, padding: 16, marginBottom: 20, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <button
+            onClick={runAutoSync}
+            disabled={autoSyncing}
+            style={{ ...primaryBtn, display: "flex", alignItems: "center", gap: 8, opacity: autoSyncing ? 0.6 : 1 }}
+          >
+            {autoSyncing ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
+            {autoSyncing ? "Analyzing audio…" : "Auto-sync this track"}
+          </button>
+          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plumDim, flex: 1, minWidth: 180 }}>
+            Best-effort — listens to the track and matches it to your lyrics. Review the result below;
+            nudge or re-tap anything that's off.
+          </span>
+        </div>
+        {autoSyncError && (
+          <p style={{ color: "#E27D6B", fontSize: 12, marginTop: -12, marginBottom: 16, fontFamily: "Inter, sans-serif" }}>{autoSyncError}</p>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, marginRight: 4 }}>Speed</span>
+          {RATES.map((r) => (
+            <button
+              key={r}
+              onClick={() => setRate(r)}
+              style={{
+                padding: "5px 10px", borderRadius: 20, cursor: "pointer",
+                border: `1px solid ${rate === r ? COLORS.gold : COLORS.line}`,
+                background: rate === r ? "rgba(232,185,77,0.12)" : "transparent",
+                color: rate === r ? COLORS.gold : COLORS.plum,
+                fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 600,
+              }}
+            >
+              {r}×
+            </button>
+          ))}
+        </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28, flexWrap: "wrap" }}>
           <button onClick={togglePlay} style={{ ...primaryBtn, padding: 12, borderRadius: "50%", display: "flex" }}>
@@ -487,9 +775,23 @@ function SyncScreen({ track, onDone, onCancel }) {
           <button
             onClick={tapLine}
             disabled={!playing || activeIdx >= track.lines.length}
-            style={{ ...ghostBtn, flex: 1, minWidth: 160, textAlign: "center", opacity: !playing || activeIdx >= track.lines.length ? 0.4 : 1 }}
+            style={{
+              ...ghostBtn, flex: 1, minWidth: 160, textAlign: "center",
+              opacity: !playing || activeIdx >= track.lines.length ? 0.4 : 1,
+              transform: flash ? "scale(0.97)" : "scale(1)",
+              borderColor: flash ? COLORS.gold : COLORS.line,
+              transition: "transform .08s, border-color .08s",
+            }}
           >
             Tap line {Math.min(activeIdx + 1, track.lines.length)} of {track.lines.length}
+          </button>
+          <button
+            onClick={undoLastTap}
+            disabled={activeIdx === 0}
+            title="Undo last tap (Backspace)"
+            style={{ ...ghostBtn, opacity: activeIdx === 0 ? 0.4 : 1 }}
+          >
+            Undo
           </button>
         </div>
 
@@ -498,7 +800,7 @@ function SyncScreen({ track, onDone, onCancel }) {
             <div
               key={i}
               style={{
-                display: "flex", alignItems: "center", gap: 12, padding: "10px 16px",
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 16px",
                 borderBottom: i < track.lines.length - 1 ? `1px solid ${COLORS.line}` : "none",
                 background: i === activeIdx ? "rgba(232,185,77,0.08)" : "transparent",
               }}
@@ -507,33 +809,58 @@ function SyncScreen({ track, onDone, onCancel }) {
                 {timestamps[i] !== null ? <Check size={15} color={COLORS.gold} /> : <span style={{ color: COLORS.plumDim, fontSize: 12 }}>{i + 1}</span>}
               </div>
               <div style={{ flex: 1, fontFamily: "Fraunces, serif", fontSize: 15, color: i === activeIdx ? COLORS.cream : COLORS.plum }}>{line}</div>
-              <button
-                onClick={() => retapLine(i)}
-                disabled={timestamps[i] === null}
-                title="Re-tap at current playhead position"
-                style={{
-                  fontFamily: "Inter, sans-serif", fontSize: 12, minWidth: 56, textAlign: "right",
-                  background: "none", border: "none", padding: 0,
-                  color: timestamps[i] !== null ? COLORS.plum : COLORS.plumDim,
-                  cursor: timestamps[i] !== null ? "pointer" : "default",
-                }}
-              >
-                {timestamps[i] !== null ? fmtTime(timestamps[i]) : "—"}
-              </button>
+
+              {timestamps[i] !== null && (
+                <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <button
+                    onClick={() => nudgeLine(i, -0.1)}
+                    title="Nudge 0.1s earlier"
+                    style={{ background: "none", border: "none", color: COLORS.plum, cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 13, padding: "2px 5px" }}
+                  >
+                    −
+                  </button>
+                  <button
+                    onClick={() => retapLine(i)}
+                    title="Re-tap at current playhead position"
+                    style={{
+                      fontFamily: "Inter, sans-serif", fontSize: 12, minWidth: 52, textAlign: "center",
+                      background: "none", border: "none", padding: 0, color: COLORS.plum, cursor: "pointer",
+                    }}
+                  >
+                    {fmtTime(timestamps[i])}
+                  </button>
+                  <button
+                    onClick={() => nudgeLine(i, 0.1)}
+                    title="Nudge 0.1s later"
+                    style={{ background: "none", border: "none", color: COLORS.plum, cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 13, padding: "2px 5px" }}
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+              {timestamps[i] === null && <span style={{ color: COLORS.plumDim, fontSize: 12, minWidth: 84, textAlign: "right" }}>—</span>}
             </div>
           ))}
         </div>
 
+
         <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
-          <button onClick={onCancel} style={ghostBtn}>Back</button>
+          <button onClick={onCancel} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.5 : 1 }}>Back</button>
           <button
-            disabled={!allTagged}
+            disabled={!allTagged || busy}
             onClick={() => onDone(timestamps)}
-            style={{ ...primaryBtn, flex: 1, minWidth: 180, opacity: allTagged ? 1 : 0.4, cursor: allTagged ? "pointer" : "not-allowed" }}
+            style={{ ...primaryBtn, flex: 1, minWidth: 180, opacity: allTagged && !busy ? 1 : 0.4, cursor: allTagged && !busy ? "pointer" : "not-allowed" }}
           >
-            {allTagged ? "Publish track" : `${timestamps.filter((t) => t !== null).length}/${track.lines.length} lines tagged`}
+            {busy
+              ? "Uploading & publishing…"
+              : allTagged
+              ? "Publish track"
+              : `${timestamps.filter((t) => t !== null).length}/${track.lines.length} lines tagged`}
           </button>
         </div>
+        {errorMessage && (
+          <p style={{ color: "#E27D6B", fontSize: 12, marginTop: 12, fontFamily: "Inter, sans-serif" }}>{errorMessage}</p>
+        )}
       </div>
     </div>
   );
@@ -571,6 +898,13 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const seeked = useRef(false);
+
+  // One real view per time this screen mounts for a track (i.e. per open,
+  // not per second of playback). Matches what the dashboard's "views" means.
+  useEffect(() => {
+    if (track?.id) recordTrackView(track.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track?.id]);
 
   useEffect(() => {
     const a = audioRef.current;
@@ -647,7 +981,7 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
               color: likeInfo?.liked ? COLORS.gold : COLORS.cream,
             }}
           >
-            <Heart size={14} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likes ?? 0}
+            <Heart size={14} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likesCount ?? 0}
           </button>
         )}
       </div>
@@ -728,7 +1062,7 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
 // ---------- Artist page ----------
 function ArtistPage({ artistName, tracks, onBack, onOpenTrack, likes }) {
   const artistTracks = tracks.filter((t) => t.artist === artistName);
-  const totalLikes = artistTracks.reduce((sum, t) => sum + (likes[t.id]?.likes ?? t.likes ?? 0), 0);
+  const totalLikes = artistTracks.reduce((sum, t) => sum + (likes[t.id]?.likes ?? t.likesCount ?? 0), 0);
   const cover = artistTracks.find((t) => t.coverURL)?.coverURL;
 
   return (
@@ -833,7 +1167,7 @@ function TrackCard({ track, likeInfo, onOpen, onOpenArtist, onLike, matchedLine 
             fontFamily: "Inter, sans-serif", fontSize: 12,
           }}
         >
-          <Heart size={13} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likes ?? 0}
+          <Heart size={13} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likesCount ?? 0}
         </button>
       </div>
     </div>
@@ -841,7 +1175,7 @@ function TrackCard({ track, likeInfo, onOpen, onOpenArtist, onLike, matchedLine 
 }
 
 // ---------- Library / home ----------
-function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpenTrack, onOpenConnections, onOpenArtist, onLike, onOpenDiscover, onOpenAITools, onOpenSitemap }) {
+function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpenTrack, onOpenConnections, onOpenArtist, onLike, onOpenDiscover, onOpenAITools, onOpenSitemap, onOpenDashboard, onOpenVideoStudio }) {
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("All");
   const [sort, setSort] = useState("recent"); // recent | trending
@@ -867,8 +1201,8 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
 
     list = [...list].sort((a, b) => {
       if (sort === "trending") {
-        const la = likes[a.id]?.likes ?? a.likes ?? 0;
-        const lb = likes[b.id]?.likes ?? b.likes ?? 0;
+        const la = likes[a.id]?.likes ?? a.likesCount ?? 0;
+        const lb = likes[b.id]?.likes ?? b.likesCount ?? 0;
         return lb - la;
       }
       return 0; // "recent" keeps publish order (array order), most recent last -> reverse below
@@ -905,6 +1239,22 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
           >
             <Wand2 size={14} /> AI tools
           </button>
+          {user.role === "artist" && (
+            <button
+              onClick={onOpenDashboard}
+              style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <BarChart3 size={14} /> Dashboard
+            </button>
+          )}
+          {user.role === "artist" && (
+            <button
+              onClick={onOpenVideoStudio}
+              style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <Video size={14} /> Lyric video
+            </button>
+          )}
           <button
             onClick={onOpenConnections}
             style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
@@ -1027,16 +1377,66 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
 
 // ---------- Root ----------
 export default function App() {
+  const [authChecked, setAuthChecked] = useState(false); // avoids landing-page flash on refresh
   const [entered, setEntered] = useState(false); // landing -> auth gate
-  const [user, setUser] = useState(null);
-  const [view, setView] = useState("home"); // home | upload | sync | player | connections | artist
+  const [user, setUser] = useState(null); // { uid, name, role }
+  const [view, setView] = useState("home");
   const [tracks, setTracks] = useState([]);
+  const [tracksError, setTracksError] = useState("");
   const [draftTrack, setDraftTrack] = useState(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
   const [openTrack, setOpenTrack] = useState(null);
   const [openArtist, setOpenArtist] = useState(null);
   const [initialSeek, setInitialSeek] = useState(undefined);
   const [connections, setConnections] = useState({ spotify: false, appleMusic: false, youtubeMusic: false });
-  const [likes, setLikes] = useState({}); // { [trackId]: { likes, liked } }
+  const [myLikedIds, setMyLikedIds] = useState({}); // { [trackId]: true } — this user's likes only
+
+  // Real session: Firebase persists the login, so refreshing the page keeps you signed in.
+  useEffect(() => {
+    const unsub = watchAuth((u) => {
+      setUser(u);
+      setAuthChecked(true);
+      if (u) setEntered(true);
+    });
+    return unsub;
+  }, []);
+
+  // Realtime catalog: every signed-in user sees the same live Firestore data.
+  useEffect(() => {
+    if (!user) {
+      setTracks([]);
+      return;
+    }
+    const unsub = watchTracks(
+      (list) => setTracks(list),
+      (err) => setTracksError(err.message || "Couldn't load the catalog.")
+    );
+    return unsub;
+  }, [user]);
+
+  // Refresh "did I like this" flags whenever the visible track list changes.
+  useEffect(() => {
+    if (!user || tracks.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        tracks.map(async (t) => [t.id, await getMyLikeStatus(t.id, user.uid)])
+      );
+      if (!cancelled) {
+        setMyLikedIds(Object.fromEntries(entries.filter(([, liked]) => liked)));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, tracks]);
+
+  const likes = useMemo(() => {
+    const map = {};
+    for (const t of tracks) {
+      map[t.id] = { likes: t.likesCount ?? 0, liked: !!myLikedIds[t.id] };
+    }
+    return map;
+  }, [tracks, myLikedIds]);
 
   const toggleConnection = (id) => setConnections((prev) => ({ ...prev, [id]: !prev[id] }));
 
@@ -1046,15 +1446,29 @@ export default function App() {
     setView("player");
   };
 
-  const toggleLike = (trackId) => {
-    setLikes((prev) => {
-      const cur = prev[trackId] || { likes: tracks.find((t) => t.id === trackId)?.likes ?? 0, liked: false };
-      const liked = !cur.liked;
-      return { ...prev, [trackId]: { likes: cur.likes + (liked ? 1 : -1), liked } };
-    });
+  const toggleLike = async (trackId) => {
+    if (!user) return;
+    // Optimistic UI, then reconcile with the real transaction result.
+    setMyLikedIds((prev) => ({ ...prev, [trackId]: !prev[trackId] }));
+    try {
+      const result = await toggleTrackLike(trackId, user.uid);
+      setMyLikedIds((prev) => ({ ...prev, [trackId]: result.liked }));
+    } catch (err) {
+      // Roll back on failure (e.g. offline, track deleted).
+      setMyLikedIds((prev) => ({ ...prev, [trackId]: !prev[trackId] }));
+    }
   };
 
   const artistCount = new Set(tracks.map((t) => t.artist)).size;
+
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <style>{FONT_IMPORT}</style>
+        <span style={{ fontFamily: "Inter, sans-serif", color: COLORS.plum, fontSize: 13 }}>Loading…</span>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
@@ -1064,7 +1478,7 @@ export default function App() {
         <LandingPage onGetStarted={() => setEntered(true)} trackCount={tracks.length} artistCount={artistCount} />
       )}
 
-      {!user && entered && <AuthScreen onSignIn={setUser} onBack={() => setEntered(false)} />}
+      {!user && entered && <AuthScreen onBack={() => setEntered(false)} />}
 
       {user && view === "home" && (
         <Home
@@ -1073,8 +1487,7 @@ export default function App() {
           likes={likes}
           connections={connections}
           onLogout={() => {
-            setUser(null);
-            setEntered(false);
+            signOut();
             setView("home");
           }}
           onUploadStart={() => setView("upload")}
@@ -1082,6 +1495,8 @@ export default function App() {
           onOpenDiscover={() => setView("discover")}
           onOpenAITools={() => setView("aitools")}
           onOpenSitemap={() => setView("sitemap")}
+          onOpenDashboard={() => setView("dashboard")}
+          onOpenVideoStudio={() => setView("videostudio")}
           onOpenTrack={openTrackAt}
           onOpenArtist={(name) => {
             setOpenArtist(name);
@@ -1089,6 +1504,12 @@ export default function App() {
           }}
           onLike={toggleLike}
         />
+      )}
+
+      {tracksError && view === "home" && (
+        <div style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", background: COLORS.inkRaised, border: "1px solid #E27D6B", color: "#E27D6B", padding: "10px 16px", borderRadius: 9, fontFamily: "Inter, sans-serif", fontSize: 12 }}>
+          {tracksError}
+        </div>
       )}
 
       {user && view === "discover" && <Discover onBack={() => setView("home")} />}
@@ -1103,7 +1524,14 @@ export default function App() {
 
       {user && view === "songmeaning" && <SongMeaning onBack={() => setView("home")} />}
 
-      {user && view === "dashboard" && <ArtistDashboard onBack={() => setView("home")} />}
+      {user && view === "dashboard" && <ArtistDashboard onBack={() => setView("home")} tracks={tracks} user={user} />}
+
+      {user && view === "videostudio" && (
+        <LyricVideoStudio
+          onBack={() => setView("home")}
+          myTracks={tracks.filter((t) => t.artistUid === user.uid)}
+        />
+      )}
 
       {user && view === "community" && <Community onBack={() => setView("home")} />}
 
@@ -1130,8 +1558,25 @@ export default function App() {
           onCancel={() => setView("home")}
           onCreated={(t) => {
             setDraftTrack(t);
+            setPublishError("");
+            setView("preparing");
+          }}
+        />
+      )}
+
+      {user && view === "preparing" && draftTrack && (
+        <PreparingScreen
+          onDone={(withUploadedURLs) => {
+            setDraftTrack(withUploadedURLs);
             setView("sync");
           }}
+          onError={(msg) => {
+            setPublishError(msg);
+            setView("upload");
+          }}
+          uploadAudio={() => uploadFile(user.uid, "audio", draftTrack.audioFile)}
+          uploadCover={draftTrack.coverFile ? () => uploadFile(user.uid, "covers", draftTrack.coverFile) : null}
+          draftTrack={draftTrack}
         />
       )}
 
@@ -1139,11 +1584,33 @@ export default function App() {
         <SyncScreen
           track={draftTrack}
           onCancel={() => setView("upload")}
-          onDone={(timestamps) => {
-            const finished = { ...draftTrack, timestamps };
-            setTracks((prev) => [...prev, finished]);
-            openTrackAt(finished, undefined);
-            setDraftTrack(null);
+          busy={publishing}
+          errorMessage={publishError}
+          onDone={async (timestamps) => {
+            setPublishing(true);
+            setPublishError("");
+            try {
+              // Files are already uploaded (see PreparingScreen) — this step
+              // just writes the finished, timestamped track to Firestore.
+              const id = await createTrack({
+                title: draftTrack.title,
+                artist: draftTrack.artist,
+                artistUid: user.uid,
+                genre: draftTrack.genre,
+                tags: draftTrack.tags,
+                lines: draftTrack.lines,
+                timestamps,
+                coverURL: draftTrack.coverURL,
+                audioURL: draftTrack.audioURL,
+              });
+
+              openTrackAt({ ...draftTrack, id, timestamps, likesCount: 0 }, undefined);
+              setDraftTrack(null);
+            } catch (err) {
+              setPublishError(err.message || "Publishing failed. Please try again.");
+            } finally {
+              setPublishing(false);
+            }
           }}
         />
       )}
