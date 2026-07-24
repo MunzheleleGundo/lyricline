@@ -1,24 +1,61 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
-  Mic2, Music4, Upload, Play, Pause, Plus, LogOut, User, Clock, Check,
-  ListMusic, Link2, Unlink, Search, Heart, Image as ImageIcon, ChevronLeft,
-  TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers, BarChart3, Video, Loader2,
+  ArrowRight,
+  BarChart3,
+  Check,
+  ChevronLeft,
+  Clock,
+  Compass,
+  Heart, Image as ImageIcon,
+  Layers,
+  Link2,
+  ListMusic,
+  Loader2,
+  LogOut,
+  Mic2, Music4,
+  Pause,
+  Play,
+  Plus,
+  Search,
+  Sparkles, Tag,
+  TrendingUp,
+  Unlink,
+  Upload,
+  User,
+  Video,
+  Wand2,
+  X,
 } from "lucide-react";
-import { FONT_IMPORT, COLORS, cardStyle } from "./theme/tokens";
-import Discover from "./pages/Discover";
-import AITools from "./pages/AITools";
-import Pricing from "./pages/Pricing";
-import Features from "./pages/Features";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { friendlyAuthError, signIn, signOut, signUp, watchAuth } from "./firebase/authService";
+import { autoAlignLyrics, searchYouTube } from "./firebase/functionsClient";
+import { uploadFile } from "./firebase/storageService";
+import { createTrack, getMyLikeStatus, recordTrackView, toggleTrackLike, watchTracks } from "./firebase/tracksService";
 import About from "./pages/About";
-import SongMeaning from "./pages/SongMeaning";
+import AITools from "./pages/AITools";
 import ArtistDashboard from "./pages/ArtistDashboard";
 import Community from "./pages/Community";
-import Sitemap from "./pages/Sitemap";
+import Discover from "./pages/Discover";
+import Features from "./pages/Features";
 import LyricVideoStudio from "./pages/LyricVideoStudio";
-import { signUp, signIn, signOut, watchAuth, friendlyAuthError } from "./firebase/authService";
-import { createTrack, watchTracks, toggleTrackLike, getMyLikeStatus, recordTrackView } from "./firebase/tracksService";
-import { uploadFile } from "./firebase/storageService";
-import { searchYouTube, autoAlignLyrics } from "./firebase/functionsClient";
+import Pricing from "./pages/Pricing";
+import Sitemap from "./pages/Sitemap";
+import SongMeaning from "./pages/SongMeaning";
+import {
+  COLORS,
+  ELEVATION,
+  FONT_IMPORT,
+  MOTION,
+  RADIUS,
+  SPACE,
+  TYPE,
+  badgeStyle,
+  cardStyle,
+  ghostBtn,
+  inputStyle, labelStyle,
+  pillStyle,
+  primaryBtn,
+  secondaryBtn,
+} from "./theme/tokens";
 
 /*
   LyricLine — a self-publish synced-lyrics platform
@@ -225,27 +262,28 @@ function AuthScreen({ onBack }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ minHeight: "100vh", background: COLORS.background, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div className="ll-fade-in" style={{ width: "100%", maxWidth: 420 }}>
+        <button onClick={onBack} style={{ ...ghostBtn, marginBottom: SPACE["2xl"], display: "flex", alignItems: "center", gap: 6 }}>
           <ChevronLeft size={15} /> Back
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28, justifyContent: "center" }}>
-          <Mic2 color={COLORS.gold} size={28} strokeWidth={1.75} />
-          <span style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: COLORS.cream, letterSpacing: "-0.01em" }}>LyricLine</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: SPACE["3xl"], justifyContent: "center" }}>
+          <Mic2 color={COLORS.primary} size={26} strokeWidth={1.75} />
+          <span style={{ ...TYPE.scale.h2, color: COLORS.textPrimary, margin: 0 }}>LyricLine</span>
         </div>
-        <div style={{ background: COLORS.inkRaised, border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: "clamp(20px, 5vw, 32px)" }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+
+        <div style={{ ...cardStyle, boxShadow: ELEVATION.lg, padding: "clamp(22px, 5vw, 32px)" }}>
+          <div style={{ display: "flex", gap: SPACE.sm, marginBottom: SPACE["2xl"], background: COLORS.background, padding: 4, borderRadius: RADIUS.lg, border: `1px solid ${COLORS.border}` }}>
             {["signin", "signup"].map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(""); }}
                 style={{
-                  flex: 1, padding: "8px 0", borderRadius: 8, cursor: "pointer",
-                  border: `1px solid ${mode === m ? COLORS.gold : COLORS.line}`,
-                  background: mode === m ? "rgba(232,185,77,0.1)" : "transparent",
-                  color: mode === m ? COLORS.gold : COLORS.plum,
-                  fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 700,
+                  flex: 1, padding: "8px 0", borderRadius: RADIUS.md, cursor: "pointer", border: "none",
+                  background: mode === m ? COLORS.primarySoft : "transparent",
+                  color: mode === m ? COLORS.primary : COLORS.textMuted,
+                  fontFamily: TYPE.body, fontSize: 12, fontWeight: 700,
+                  transition: `background ${MOTION.fast}, color ${MOTION.fast}`,
                 }}
               >
                 {m === "signin" ? "Sign in" : "Create account"}
@@ -253,68 +291,58 @@ function AuthScreen({ onBack }) {
             ))}
           </div>
 
-          <h1 style={{ fontFamily: "Fraunces, serif", fontWeight: 600, fontSize: 22, color: COLORS.cream, margin: "0 0 6px" }}>
+          <h1 style={{ ...TYPE.scale.h3, color: COLORS.textPrimary, margin: "0 0 6px" }}>
             {mode === "signin" ? "Welcome back" : "Set up your page"}
           </h1>
-          <p style={{ color: COLORS.plum, fontSize: 14, margin: "0 0 24px", lineHeight: 1.5 }}>
+          <p style={{ ...TYPE.scale.body, color: COLORS.textMuted, margin: `0 0 ${SPACE["2xl"]}px` }}>
             Artists publish their own lyrics here — you keep the rights, you set the sync.
           </p>
 
-          {mode === "signup" && (
-            <>
-              <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Your name</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Rosa Winters"
-                style={{ ...inputStyle, marginBottom: 16 }}
-              />
-            </>
-          )}
-
-          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            style={{ ...inputStyle, marginBottom: 16 }}
-          />
-
-          <label style={{ display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" }}>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 6 characters"
-            style={inputStyle}
-          />
-
-          {mode === "signup" && (
-            <>
-              <label style={{ display: "block", fontSize: 12, color: COLORS.plum, margin: "16px 0 6px", fontFamily: "Inter, sans-serif" }}>I am a...</label>
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                {["artist", "listener"].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRole(r)}
-                    style={{
-                      flex: 1, padding: "10px 12px", borderRadius: 9, cursor: "pointer",
-                      border: `1px solid ${role === r ? COLORS.gold : COLORS.line}`,
-                      background: role === r ? "rgba(232,185,77,0.12)" : "transparent",
-                      color: role === r ? COLORS.gold : COLORS.cream,
-                      fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, textTransform: "capitalize",
-                    }}
-                  >
-                    {r}
-                  </button>
-                ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
+            {mode === "signup" && (
+              <div>
+                <label style={labelStyle}>Your name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rosa Winters" style={inputStyle} />
               </div>
-            </>
-          )}
+            )}
+
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={inputStyle} />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Password</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" style={inputStyle} />
+            </div>
+
+            {mode === "signup" && (
+              <div>
+                <label style={labelStyle}>I am a...</label>
+                <div style={{ display: "flex", gap: SPACE.sm }}>
+                  {["artist", "listener"].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRole(r)}
+                      style={{
+                        flex: 1, padding: "10px 12px", borderRadius: RADIUS.lg, cursor: "pointer",
+                        border: `1px solid ${role === r ? COLORS.primary : COLORS.border}`,
+                        background: role === r ? COLORS.primarySoft : "transparent",
+                        color: role === r ? COLORS.primary : COLORS.textPrimary,
+                        fontFamily: TYPE.body, fontSize: 13, fontWeight: 600, textTransform: "capitalize",
+                        transition: `background ${MOTION.fast}, border-color ${MOTION.fast}`,
+                      }}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {error && (
-            <p style={{ color: "#E27D6B", fontSize: 12, margin: "16px 0 0", fontFamily: "Inter, sans-serif", lineHeight: 1.5 }}>
+            <p role="alert" style={{ color: COLORS.danger, fontSize: 12, margin: `${SPACE.lg}px 0 0`, fontFamily: TYPE.body, lineHeight: 1.5 }}>
               {error}
             </p>
           )}
@@ -323,17 +351,16 @@ function AuthScreen({ onBack }) {
             disabled={!canSubmit || busy}
             onClick={submit}
             style={{
-              width: "100%", padding: "12px 0", borderRadius: 9, border: "none", marginTop: 20,
-              background: canSubmit && !busy ? COLORS.gold : COLORS.line,
-              color: canSubmit && !busy ? "#1C1608" : COLORS.plum,
-              fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 14,
-              cursor: canSubmit && !busy ? "pointer" : "not-allowed", transition: "opacity .15s",
+              ...primaryBtn, width: "100%", marginTop: SPACE["2xl"],
+              opacity: canSubmit && !busy ? 1 : 0.45,
+              cursor: canSubmit && !busy ? "pointer" : "not-allowed",
             }}
           >
+            {busy && <Loader2 size={14} className="spin" />}
             {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
 
-          <p style={{ textAlign: "center", marginTop: 18, fontSize: 12, color: COLORS.plum }}>
+          <p style={{ textAlign: "center", marginTop: SPACE.lg, fontSize: 11, color: COLORS.textFaint, lineHeight: 1.5 }}>
             By continuing you confirm any lyrics you upload are your own work, or that you hold the rights to publish them.
           </p>
         </div>
@@ -341,12 +368,6 @@ function AuthScreen({ onBack }) {
     </div>
   );
 }
-
-const inputStyle = {
-  width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9,
-  border: `1px solid ${COLORS.line}`, background: COLORS.ink, color: COLORS.cream,
-  fontFamily: "Inter, sans-serif", fontSize: 14, outline: "none",
-};
 
 // ---------- Upload ----------
 function UploadScreen({ onCreated, onCancel }) {
@@ -409,14 +430,18 @@ function UploadScreen({ onCreated, onCancel }) {
   const canContinue = title.trim() && artist.trim() && lyricsText.trim() && audioURL;
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink, padding: "clamp(24px, 6vw, 48px) 20px" }}>
-      <div style={{ maxWidth: 640, margin: "0 auto" }}>
-        <h1 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(24px, 4vw, 30px)", color: COLORS.cream, margin: "0 0 6px" }}>Publish a track</h1>
-        <p style={{ color: COLORS.plum, fontSize: 14, margin: "0 0 32px" }}>Add your song, then paste the lyrics line by line. You'll sync timestamps next.</p>
+    <div style={{ minHeight: "100vh", background: COLORS.background, padding: "clamp(24px, 6vw, 48px) 20px" }}>
+      <div className="ll-fade-in" style={{ maxWidth: 640, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: SPACE.sm }}>
+          <span style={badgeStyle("primary")}>Step 1 of 2</span>
+          <span style={{ ...TYPE.scale.caption, color: COLORS.textFaint }}>Publish details, then sync timestamps</span>
+        </div>
+        <h1 style={{ ...TYPE.scale.h1, color: COLORS.textPrimary, margin: "0 0 6px" }}>Publish a track</h1>
+        <p style={{ ...TYPE.scale.body, color: COLORS.textMuted, margin: `0 0 ${SPACE["3xl"]}px` }}>Add your song, then paste the lyrics line by line. You'll sync timestamps next.</p>
 
-        <div style={{ ...cardStyle, padding: 16, marginBottom: 20 }}>
+        <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"] }}>
           <label style={labelStyle}>Fill from YouTube (optional)</label>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: SPACE.sm }}>
             <input
               value={ytQuery}
               onChange={(e) => setYtQuery(e.target.value)}
@@ -424,59 +449,65 @@ function UploadScreen({ onCreated, onCancel }) {
               placeholder="Search by song or artist name"
               style={{ ...inputStyle, flex: 1 }}
             />
-            <button onClick={runYouTubeSearch} disabled={ytSearching} style={{ ...ghostBtn, opacity: ytSearching ? 0.6 : 1, whiteSpace: "nowrap" }}>
+            <button onClick={runYouTubeSearch} disabled={ytSearching} style={{ ...secondaryBtn, opacity: ytSearching ? 0.6 : 1, whiteSpace: "nowrap" }}>
+              {ytSearching ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
               {ytSearching ? "Searching…" : "Search"}
             </button>
           </div>
-          {ytError && <p style={{ color: "#E27D6B", fontSize: 12, marginTop: 8 }}>{ytError}</p>}
+          {ytError && <p style={{ color: COLORS.danger, fontSize: 12, marginTop: SPACE.sm }}>{ytError}</p>}
           {ytResults.length > 0 && (
-            <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="ll-fade-in" style={{ marginTop: SPACE.md, display: "flex", flexDirection: "column", gap: 6 }}>
               {ytResults.map((r) => (
                 <button
                   key={r.videoId}
                   onClick={() => applyYouTubeResult(r)}
                   style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: 8, cursor: "pointer",
-                    background: "rgba(232,185,77,0.05)", border: `1px solid ${COLORS.line}`, textAlign: "left",
+                    display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: RADIUS.md, cursor: "pointer",
+                    background: COLORS.hover, border: `1px solid ${COLORS.border}`, textAlign: "left",
+                    transition: `background ${MOTION.fast}, border-color ${MOTION.fast}`,
                   }}
                 >
                   {r.coverURL ? (
-                    <img src={r.coverURL} alt="" style={{ width: 48, height: 27, borderRadius: 6, objectFit: "cover" }} />
+                    <img src={r.coverURL} alt="" style={{ width: 48, height: 27, borderRadius: RADIUS.sm, objectFit: "cover" }} />
                   ) : (
-                    <div style={{ width: 48, height: 27, borderRadius: 6, background: COLORS.line }} />
+                    <div style={{ width: 48, height: 27, borderRadius: RADIUS.sm, background: COLORS.border }} />
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: COLORS.cream, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
-                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.channelTitle}</div>
+                    <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textPrimary, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
+                    <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.channelTitle}</div>
                   </div>
                 </button>
               ))}
             </div>
           )}
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: COLORS.plumDim, marginTop: 8, marginBottom: 0 }}>
+          <p style={{ ...TYPE.scale.caption, color: COLORS.textFaint, marginTop: SPACE.sm, marginBottom: 0 }}>
             Pulls the video title, channel name, and thumbnail — this is YouTube video metadata, not
             verified music data, so double-check the artist field before publishing. Lyrics still need
             to be your own typed text.
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: SPACE.lg, marginBottom: SPACE["2xl"], flexWrap: "wrap" }}>
           <div
             onClick={() => coverRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            aria-label="Choose cover art"
             style={{
-              width: 96, height: 96, borderRadius: 12, flexShrink: 0, cursor: "pointer",
-              border: `1.5px dashed ${coverURL ? COLORS.gold : COLORS.line}`,
+              width: 96, height: 96, borderRadius: RADIUS.xl, flexShrink: 0, cursor: "pointer",
+              border: `1.5px dashed ${coverURL ? COLORS.primary : COLORS.border}`,
               backgroundImage: coverURL ? `url(${coverURL})` : "none",
               backgroundSize: "cover", backgroundPosition: "center",
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: coverURL ? undefined : "rgba(232,185,77,0.04)",
+              background: coverURL ? undefined : COLORS.primarySoft,
+              transition: `border-color ${MOTION.fast}`,
             }}
           >
-            {!coverURL && <ImageIcon size={20} color={COLORS.plum} />}
+            {!coverURL && <ImageIcon size={20} color={COLORS.textMuted} />}
             <input ref={coverRef} type="file" accept="image/*" onChange={handleCover} style={{ display: "none" }} />
           </div>
 
-          <div style={{ flex: 1, minWidth: 220, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 220, display: "flex", flexDirection: "column", gap: SPACE.md }}>
             <div>
               <label style={labelStyle}>Song title</label>
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Midnight Static" style={inputStyle} />
@@ -488,7 +519,7 @@ function UploadScreen({ onCreated, onCancel }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: SPACE.md, marginBottom: SPACE.lg, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 160 }}>
             <label style={labelStyle}>Genre</label>
             <select value={genre} onChange={(e) => setGenre(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
@@ -506,14 +537,17 @@ function UploadScreen({ onCreated, onCancel }) {
         <label style={labelStyle}>Audio file</label>
         <div
           onClick={() => fileRef.current?.click()}
+          role="button"
+          tabIndex={0}
           style={{
-            border: `1.5px dashed ${audioURL ? COLORS.gold : COLORS.line}`, borderRadius: 12, padding: 20,
-            display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginBottom: 16, flexWrap: "wrap",
-            background: audioURL ? "rgba(232,185,77,0.06)" : "transparent",
+            border: `1.5px dashed ${audioURL ? COLORS.primary : COLORS.border}`, borderRadius: RADIUS.xl, padding: SPACE.xl,
+            display: "flex", alignItems: "center", gap: SPACE.md, cursor: "pointer", marginBottom: SPACE.lg, flexWrap: "wrap",
+            background: audioURL ? COLORS.primarySoft : "transparent",
+            transition: `border-color ${MOTION.fast}, background ${MOTION.fast}`,
           }}
         >
-          <Upload size={20} color={audioURL ? COLORS.gold : COLORS.plum} />
-          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: audioURL ? COLORS.cream : COLORS.plum }}>
+          <Upload size={20} color={audioURL ? COLORS.primary : COLORS.textMuted} />
+          <div style={{ fontFamily: TYPE.body, fontSize: 13, color: audioURL ? COLORS.textPrimary : COLORS.textMuted }}>
             {audioURL ? audioName : "Click to choose an audio file (mp3, wav, m4a...)"}
           </div>
           <input ref={fileRef} type="file" accept="audio/*" onChange={handleFile} style={{ display: "none" }} />
@@ -525,10 +559,10 @@ function UploadScreen({ onCreated, onCancel }) {
           onChange={(e) => setLyricsText(e.target.value)}
           rows={10}
           placeholder={"City lights blur through the glass\nI'm holding on to what I had\n..."}
-          style={{ ...inputStyle, resize: "vertical", fontFamily: "Fraunces, serif", lineHeight: 1.6, marginBottom: 24 }}
+          style={{ ...inputStyle, resize: "vertical", fontFamily: TYPE.display, lineHeight: 1.6, marginBottom: SPACE["3xl"] }}
         />
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: SPACE.md, flexWrap: "wrap" }}>
           <button onClick={onCancel} style={ghostBtn}>Cancel</button>
           <button
             disabled={!canContinue}
@@ -556,16 +590,6 @@ function UploadScreen({ onCreated, onCancel }) {
   );
 }
 
-const labelStyle = { display: "block", fontSize: 12, color: COLORS.plum, marginBottom: 6, fontFamily: "Inter, sans-serif" };
-const primaryBtn = {
-  padding: "12px 20px", borderRadius: 9, border: "none", background: COLORS.gold, color: "#1C1608",
-  fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 14,
-};
-const ghostBtn = {
-  padding: "12px 20px", borderRadius: 9, border: `1px solid ${COLORS.line}`, background: "transparent", color: COLORS.cream,
-  fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer",
-};
-
 // ---------- Upload files, then hand off to sync ----------
 function PreparingScreen({ onDone, onError, uploadAudio, uploadCover, draftTrack }) {
   const [status, setStatus] = useState("Uploading audio…");
@@ -592,9 +616,9 @@ function PreparingScreen({ onDone, onError, uploadAudio, uploadCover, draftTrack
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
-      <div style={{ width: 28, height: 28, border: `3px solid ${COLORS.line}`, borderTopColor: COLORS.gold, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: COLORS.plum }}>{status}</p>
+    <div style={{ minHeight: "100vh", background: COLORS.background, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: SPACE.lg }}>
+      <div className="spin" style={{ width: 30, height: 30, border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.primary, borderRadius: "50%" }} />
+      <p style={{ ...TYPE.scale.body, color: COLORS.textMuted }}>{status}</p>
     </div>
   );
 }
@@ -720,67 +744,67 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
     }
   };
 
+  const taggedCount = timestamps.filter((t) => t !== null).length;
+
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink, padding: "clamp(24px, 6vw, 40px) 20px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+    <div style={{ minHeight: "100vh", background: COLORS.background, padding: "clamp(24px, 6vw, 40px) 20px", display: "flex", flexDirection: "column", alignItems: "center" }}>
       <audio ref={audioRef} src={track.audioURL} />
-      <div style={{ width: "100%", maxWidth: 560 }}>
-        <h1 style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: COLORS.cream, margin: "0 0 4px" }}>Tap to sync</h1>
-        <p style={{ color: COLORS.plum, fontSize: 13, margin: "0 0 16px" }}>
-          Press <b style={{ color: COLORS.gold }}>Space</b> when each line starts, or let auto-sync take a first
+      <div className="ll-fade-in" style={{ width: "100%", maxWidth: 560 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: SPACE.sm }}>
+          <span style={badgeStyle("primary")}>Step 2 of 2</span>
+          <span style={{ ...TYPE.scale.caption, color: COLORS.textFaint }}>{taggedCount}/{track.lines.length} lines tagged</span>
+        </div>
+        <h1 style={{ ...TYPE.scale.h1, fontSize: 26, color: COLORS.textPrimary, margin: "0 0 4px" }}>Tap to sync</h1>
+        <p style={{ ...TYPE.scale.body, fontSize: 13, color: COLORS.textMuted, margin: `0 0 ${SPACE.lg}px` }}>
+          Press <b style={{ color: COLORS.primary }}>Space</b> when each line starts, or let auto-sync take a first
           pass and just fix any lines that land wrong.
         </p>
 
-        <div style={{ ...cardStyle, padding: 16, marginBottom: 20, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"], display: "flex", alignItems: "center", gap: SPACE.md, flexWrap: "wrap" }}>
           <button
             onClick={runAutoSync}
             disabled={autoSyncing}
-            style={{ ...primaryBtn, display: "flex", alignItems: "center", gap: 8, opacity: autoSyncing ? 0.6 : 1 }}
+            style={{ ...primaryBtn, opacity: autoSyncing ? 0.6 : 1 }}
           >
             {autoSyncing ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
             {autoSyncing ? "Analyzing audio…" : "Auto-sync this track"}
           </button>
-          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plumDim, flex: 1, minWidth: 180 }}>
+          <span style={{ ...TYPE.scale.caption, color: COLORS.textFaint, flex: 1, minWidth: 180 }}>
             Best-effort — listens to the track and matches it to your lyrics. Review the result below;
             nudge or re-tap anything that's off.
           </span>
         </div>
         {autoSyncError && (
-          <p style={{ color: "#E27D6B", fontSize: 12, marginTop: -12, marginBottom: 16, fontFamily: "Inter, sans-serif" }}>{autoSyncError}</p>
+          <p style={{ color: COLORS.danger, fontSize: 12, marginTop: -12, marginBottom: SPACE.lg, fontFamily: TYPE.body }}>{autoSyncError}</p>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, marginRight: 4 }}>Speed</span>
+        <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.lg }}>
+          <span style={{ ...TYPE.scale.label, color: COLORS.textMuted, marginRight: 4, textTransform: "none" }}>Speed</span>
           {RATES.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRate(r)}
-              style={{
-                padding: "5px 10px", borderRadius: 20, cursor: "pointer",
-                border: `1px solid ${rate === r ? COLORS.gold : COLORS.line}`,
-                background: rate === r ? "rgba(232,185,77,0.12)" : "transparent",
-                color: rate === r ? COLORS.gold : COLORS.plum,
-                fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 600,
-              }}
-            >
+            <button key={r} onClick={() => setRate(r)} style={pillStyle(rate === r)}>
               {r}×
             </button>
           ))}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28, flexWrap: "wrap" }}>
-          <button onClick={togglePlay} style={{ ...primaryBtn, padding: 12, borderRadius: "50%", display: "flex" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: SPACE.lg, marginBottom: SPACE["3xl"], flexWrap: "wrap" }}>
+          <button
+            onClick={togglePlay}
+            aria-label={playing ? "Pause" : "Play"}
+            style={{ ...primaryBtn, width: 46, height: 46, padding: 0, borderRadius: RADIUS.full, display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
             {playing ? <Pause size={18} /> : <Play size={18} />}
           </button>
-          <div style={{ fontFamily: "Inter, sans-serif", color: COLORS.plum, fontSize: 13 }}>{fmtTime(current)}</div>
+          <div style={{ fontFamily: TYPE.mono, color: COLORS.textMuted, fontSize: 13 }}>{fmtTime(current)}</div>
           <button
             onClick={tapLine}
             disabled={!playing || activeIdx >= track.lines.length}
             style={{
-              ...ghostBtn, flex: 1, minWidth: 160, textAlign: "center",
+              ...ghostBtn, flex: 1, minWidth: 160, justifyContent: "center",
               opacity: !playing || activeIdx >= track.lines.length ? 0.4 : 1,
               transform: flash ? "scale(0.97)" : "scale(1)",
-              borderColor: flash ? COLORS.gold : COLORS.line,
-              transition: "transform .08s, border-color .08s",
+              borderColor: flash ? COLORS.primary : COLORS.border,
+              transition: `transform ${MOTION.fast}, border-color ${MOTION.fast}`,
             }}
           >
             Tap line {Math.min(activeIdx + 1, track.lines.length)} of {track.lines.length}
@@ -795,27 +819,29 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
           </button>
         </div>
 
-        <div style={{ background: COLORS.inkRaised, border: `1px solid ${COLORS.line}`, borderRadius: 12, maxHeight: 340, overflowY: "auto" }}>
+        <div style={{ background: COLORS.surfaceRaised, border: `1px solid ${COLORS.border}`, borderRadius: RADIUS.xl, boxShadow: ELEVATION.sm, maxHeight: 340, overflowY: "auto" }}>
           {track.lines.map((line, i) => (
             <div
               key={i}
               style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 16px",
-                borderBottom: i < track.lines.length - 1 ? `1px solid ${COLORS.line}` : "none",
-                background: i === activeIdx ? "rgba(232,185,77,0.08)" : "transparent",
+                display: "flex", alignItems: "center", gap: SPACE.sm, padding: `${SPACE.md}px ${SPACE.lg}px`,
+                borderBottom: i < track.lines.length - 1 ? `1px solid ${COLORS.border}` : "none",
+                background: i === activeIdx ? COLORS.primarySoft : "transparent",
+                transition: `background ${MOTION.fast}`,
               }}
             >
               <div style={{ width: 20 }}>
-                {timestamps[i] !== null ? <Check size={15} color={COLORS.gold} /> : <span style={{ color: COLORS.plumDim, fontSize: 12 }}>{i + 1}</span>}
+                {timestamps[i] !== null ? <Check size={15} color={COLORS.primary} /> : <span style={{ color: COLORS.textFaint, fontSize: 12 }}>{i + 1}</span>}
               </div>
-              <div style={{ flex: 1, fontFamily: "Fraunces, serif", fontSize: 15, color: i === activeIdx ? COLORS.cream : COLORS.plum }}>{line}</div>
+              <div style={{ flex: 1, fontFamily: TYPE.display, fontSize: 15, color: i === activeIdx ? COLORS.textPrimary : COLORS.textMuted }}>{line}</div>
 
               {timestamps[i] !== null && (
                 <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
                   <button
                     onClick={() => nudgeLine(i, -0.1)}
                     title="Nudge 0.1s earlier"
-                    style={{ background: "none", border: "none", color: COLORS.plum, cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 13, padding: "2px 5px" }}
+                    aria-label="Nudge 0.1 seconds earlier"
+                    style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", fontFamily: TYPE.body, fontSize: 13, padding: "2px 5px" }}
                   >
                     −
                   </button>
@@ -823,8 +849,8 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
                     onClick={() => retapLine(i)}
                     title="Re-tap at current playhead position"
                     style={{
-                      fontFamily: "Inter, sans-serif", fontSize: 12, minWidth: 52, textAlign: "center",
-                      background: "none", border: "none", padding: 0, color: COLORS.plum, cursor: "pointer",
+                      fontFamily: TYPE.mono, fontSize: 12, minWidth: 52, textAlign: "center",
+                      background: "none", border: "none", padding: 0, color: COLORS.textMuted, cursor: "pointer",
                     }}
                   >
                     {fmtTime(timestamps[i])}
@@ -832,34 +858,35 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
                   <button
                     onClick={() => nudgeLine(i, 0.1)}
                     title="Nudge 0.1s later"
-                    style={{ background: "none", border: "none", color: COLORS.plum, cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 13, padding: "2px 5px" }}
+                    aria-label="Nudge 0.1 seconds later"
+                    style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", fontFamily: TYPE.body, fontSize: 13, padding: "2px 5px" }}
                   >
                     +
                   </button>
                 </div>
               )}
-              {timestamps[i] === null && <span style={{ color: COLORS.plumDim, fontSize: 12, minWidth: 84, textAlign: "right" }}>—</span>}
+              {timestamps[i] === null && <span style={{ color: COLORS.textFaint, fontSize: 12, minWidth: 84, textAlign: "right" }}>—</span>}
             </div>
           ))}
         </div>
 
-
-        <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: SPACE.md, marginTop: SPACE["2xl"], flexWrap: "wrap" }}>
           <button onClick={onCancel} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.5 : 1 }}>Back</button>
           <button
             disabled={!allTagged || busy}
             onClick={() => onDone(timestamps)}
             style={{ ...primaryBtn, flex: 1, minWidth: 180, opacity: allTagged && !busy ? 1 : 0.4, cursor: allTagged && !busy ? "pointer" : "not-allowed" }}
           >
+            {busy && <Loader2 size={14} className="spin" />}
             {busy
               ? "Uploading & publishing…"
               : allTagged
               ? "Publish track"
-              : `${timestamps.filter((t) => t !== null).length}/${track.lines.length} lines tagged`}
+              : `${taggedCount}/${track.lines.length} lines tagged`}
           </button>
         </div>
         {errorMessage && (
-          <p style={{ color: "#E27D6B", fontSize: 12, marginTop: 12, fontFamily: "Inter, sans-serif" }}>{errorMessage}</p>
+          <p style={{ color: COLORS.danger, fontSize: 12, marginTop: SPACE.md, fontFamily: TYPE.body }}>{errorMessage}</p>
         )}
       </div>
     </div>
