@@ -5,7 +5,7 @@ import {
   TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers, BarChart3, Video, Loader2, Youtube,
 } from "lucide-react";
 import {
-  FONT_IMPORT, COLORS, TYPE, SPACE, RADIUS, ELEVATION, MOTION,
+  FONT_IMPORT, COLORS, TYPE, SPACE, RADIUS, ELEVATION, MOTION, GRADIENT_BRAND,
   cardStyle, inputStyle, labelStyle, primaryBtn, ghostBtn, secondaryBtn, badgeStyle, pillStyle,
 } from "./theme/tokens";
 import Discover from "./pages/Discover";
@@ -792,6 +792,92 @@ function PreparingScreen({ onDone, onError, uploadAudio, uploadCover, draftTrack
 
 
 // ---------- Tap to sync ----------
+// ---------- Karaoke-style preview for reviewing sync ----------
+// A timestamp table is hard to eyeball — this renders it like an actual
+// lyric video instead: cover art behind, the current line large and lit up,
+// the line before/after visible but dim, advancing live as the audio plays.
+// Reviewing becomes "watch it and see if it looks right" instead of
+// cross-checking a column of numbers.
+function activeLineIndex(current, timestamps) {
+  let idx = -1;
+  for (let i = 0; i < timestamps.length; i++) {
+    if (timestamps[i] === null) continue;
+    if (timestamps[i] <= current) idx = i;
+    else break;
+  }
+  return idx;
+}
+
+function LyricVideoPreview({ track, timestamps, current, playing, onTogglePlay }) {
+  const idx = useMemo(() => activeLineIndex(current, timestamps), [current, timestamps]);
+  const prevLine = idx > 0 ? track.lines[idx - 1] : null;
+  const currentLine = idx >= 0 ? track.lines[idx] : track.lines[0];
+  const nextLine = idx >= 0 && idx < track.lines.length - 1 ? track.lines[idx + 1] : idx === -1 ? track.lines[0] : null;
+
+  return (
+    <div
+      style={{
+        position: "relative", height: 260, borderRadius: RADIUS["2xl"], overflow: "hidden",
+        marginBottom: SPACE["2xl"], boxShadow: ELEVATION.lg, border: `1px solid ${COLORS.border}`,
+        background: track.coverURL ? `center/cover no-repeat url(${track.coverURL})` : GRADIENT_BRAND,
+        display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center",
+      }}
+    >
+      {/* Darken/blur the cover art so text stays readable over any image */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "linear-gradient(180deg, rgba(20,15,25,0.55) 0%, rgba(20,15,25,0.75) 100%)",
+        backdropFilter: "blur(2px)",
+      }} />
+
+      <div style={{ position: "relative", padding: "0 28px", width: "100%" }}>
+        {prevLine !== null && (
+          <div style={{ ...TYPE.styles.h4, color: "rgba(255,255,255,0.45)", marginBottom: 10, fontFamily: TYPE.display, transition: `opacity ${MOTION.base}` }}>
+            {prevLine}
+          </div>
+        )}
+        <div
+          key={idx}
+          className="ll-fade-in"
+          style={{
+            fontFamily: TYPE.display, fontWeight: 700, fontSize: "clamp(20px, 4vw, 30px)",
+            color: "#FFFFFF", lineHeight: 1.3, textShadow: "0 2px 12px rgba(0,0,0,0.5)",
+          }}
+        >
+          {currentLine}
+        </div>
+        {nextLine !== null && (
+          <div style={{ ...TYPE.styles.h4, color: "rgba(255,255,255,0.45)", marginTop: 10, fontFamily: TYPE.display }}>
+            {nextLine}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={onTogglePlay}
+        aria-label={playing ? "Pause" : "Play"}
+        style={{
+          position: "absolute", left: 16, bottom: 14, width: 40, height: 40, borderRadius: RADIUS.full,
+          background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.3)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#FFFFFF",
+        }}
+      >
+        {playing ? <Pause size={16} /> : <Play size={16} />}
+      </button>
+      <div style={{ position: "absolute", right: 16, bottom: 20, fontFamily: TYPE.mono, fontSize: 11, color: "rgba(255,255,255,0.75)" }}>
+        {fmtTime(current)}
+      </div>
+      <div style={{ position: "absolute", left: 64, right: 64, bottom: 20, height: 3, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
+        <div style={{
+          height: "100%", background: COLORS.primary, borderRadius: RADIUS.full,
+          width: `${Math.min(100, (idx >= 0 ? (idx + 1) : 0) / track.lines.length * 100)}%`,
+          transition: `width ${MOTION.base}`,
+        }} />
+      </div>
+    </div>
+  );
+}
+
 function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -960,6 +1046,20 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
         {autoSyncError && (
           <p style={{ color: COLORS.danger, fontSize: 12, marginTop: -12, marginBottom: SPACE.lg, fontFamily: TYPE.body }}>{autoSyncError}</p>
         )}
+
+        {!autoSyncing && (
+          <LyricVideoPreview
+            track={track}
+            timestamps={timestamps}
+            current={current}
+            playing={playing}
+            onTogglePlay={togglePlay}
+          />
+        )}
+
+        <div style={{ ...TYPE.styles.label, color: COLORS.textMuted, textTransform: "none", marginBottom: SPACE.sm }}>
+          Something off? Fine-tune it below
+        </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.lg }}>
           <span style={{ ...TYPE.styles.label, color: COLORS.textMuted, marginRight: 4, textTransform: "none" }}>Speed</span>
