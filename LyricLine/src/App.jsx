@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import {
   Mic2, Music4, Upload, Play, Pause, Plus, LogOut, User, Clock, Check,
   ListMusic, Link2, Unlink, Search, Heart, Image as ImageIcon, ChevronLeft,
-  TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers, BarChart3, Video, Loader2, Youtube,
+  TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers, BarChart3, Video, Loader2, Youtube, SkipBack, SkipForward,
 } from "lucide-react";
 import {
   FONT_IMPORT, COLORS, TYPE, SPACE, RADIUS, ELEVATION, MOTION, GRADIENT_BRAND,
@@ -808,11 +808,35 @@ function activeLineIndex(current, timestamps) {
   return idx;
 }
 
-function LyricVideoPreview({ track, timestamps, current, playing, onTogglePlay }) {
+function LyricVideoPreview({ track, timestamps, current, duration, playing, onTogglePlay, onSeek, onSkip }) {
   const idx = useMemo(() => activeLineIndex(current, timestamps), [current, timestamps]);
   const prevLine = idx > 0 ? track.lines[idx - 1] : null;
   const currentLine = idx >= 0 ? track.lines[idx] : track.lines[0];
   const nextLine = idx >= 0 && idx < track.lines.length - 1 ? track.lines[idx + 1] : idx === -1 ? track.lines[0] : null;
+
+  const barRef = useRef(null);
+  const scrubToEvent = (e) => {
+    const bar = barRef.current;
+    if (!bar || !duration) return;
+    const rect = bar.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    onSeek(frac * duration);
+  };
+  const handleBarPointerDown = (e) => {
+    scrubToEvent(e);
+    const onMove = (ev) => scrubToEvent(ev);
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const jumpToLine = (lineIdx) => {
+    if (timestamps[lineIdx] !== null) onSeek(timestamps[lineIdx]);
+  };
 
   return (
     <div
@@ -832,7 +856,10 @@ function LyricVideoPreview({ track, timestamps, current, playing, onTogglePlay }
 
       <div style={{ position: "relative", padding: "0 28px", width: "100%" }}>
         {prevLine !== null && (
-          <div style={{ ...TYPE.styles.h4, color: "rgba(255,255,255,0.45)", marginBottom: 10, fontFamily: TYPE.display, transition: `opacity ${MOTION.base}` }}>
+          <div
+            onClick={() => jumpToLine(idx - 1)}
+            style={{ ...TYPE.styles.h4, color: "rgba(255,255,255,0.45)", marginBottom: 10, fontFamily: TYPE.display, cursor: timestamps[idx - 1] !== null ? "pointer" : "default" }}
+          >
             {prevLine}
           </div>
         )}
@@ -847,32 +874,79 @@ function LyricVideoPreview({ track, timestamps, current, playing, onTogglePlay }
           {currentLine}
         </div>
         {nextLine !== null && (
-          <div style={{ ...TYPE.styles.h4, color: "rgba(255,255,255,0.45)", marginTop: 10, fontFamily: TYPE.display }}>
+          <div
+            onClick={() => idx >= 0 && jumpToLine(idx + 1)}
+            style={{ ...TYPE.styles.h4, color: "rgba(255,255,255,0.45)", marginTop: 10, fontFamily: TYPE.display, cursor: idx >= 0 && timestamps[idx + 1] !== null ? "pointer" : "default" }}
+          >
             {nextLine}
           </div>
         )}
       </div>
 
-      <button
-        onClick={onTogglePlay}
-        aria-label={playing ? "Pause" : "Play"}
+      <div style={{ position: "absolute", left: 16, bottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+        <button
+          onClick={() => onSkip(-5)}
+          aria-label="Back 5 seconds"
+          title="Back 5 seconds"
+          style={{
+            width: 32, height: 32, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.14)",
+            border: "1px solid rgba(255,255,255,0.28)", display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "#FFFFFF",
+          }}
+        >
+          <SkipBack size={14} />
+        </button>
+        <button
+          onClick={onTogglePlay}
+          aria-label={playing ? "Pause" : "Play"}
+          style={{
+            width: 40, height: 40, borderRadius: RADIUS.full,
+            background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.3)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#FFFFFF",
+          }}
+        >
+          {playing ? <Pause size={16} /> : <Play size={16} />}
+        </button>
+        <button
+          onClick={() => onSkip(5)}
+          aria-label="Forward 5 seconds"
+          title="Forward 5 seconds"
+          style={{
+            width: 32, height: 32, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.14)",
+            border: "1px solid rgba(255,255,255,0.28)", display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "#FFFFFF",
+          }}
+        >
+          <SkipForward size={14} />
+        </button>
+      </div>
+      <div style={{ position: "absolute", right: 16, bottom: 20, fontFamily: TYPE.mono, fontSize: 11, color: "rgba(255,255,255,0.75)" }}>
+        {fmtTime(current)}{duration ? ` / ${fmtTime(duration)}` : ""}
+      </div>
+      <div
+        ref={barRef}
+        onMouseDown={handleBarPointerDown}
+        role="slider"
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={duration || 0}
+        aria-valuenow={current}
         style={{
-          position: "absolute", left: 16, bottom: 14, width: 40, height: 40, borderRadius: RADIUS.full,
-          background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.3)", backdropFilter: "blur(4px)",
-          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#FFFFFF",
+          position: "absolute", left: 138, right: 64, bottom: 20, height: 14, display: "flex", alignItems: "center",
+          cursor: "pointer",
         }}
       >
-        {playing ? <Pause size={16} /> : <Play size={16} />}
-      </button>
-      <div style={{ position: "absolute", right: 16, bottom: 20, fontFamily: TYPE.mono, fontSize: 11, color: "rgba(255,255,255,0.75)" }}>
-        {fmtTime(current)}
-      </div>
-      <div style={{ position: "absolute", left: 64, right: 64, bottom: 20, height: 3, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
-        <div style={{
-          height: "100%", background: COLORS.primary, borderRadius: RADIUS.full,
-          width: `${Math.min(100, (idx >= 0 ? (idx + 1) : 0) / track.lines.length * 100)}%`,
-          transition: `width ${MOTION.base}`,
-        }} />
+        <div style={{ position: "relative", width: "100%", height: 3, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.2)", overflow: "visible" }}>
+          <div style={{
+            position: "absolute", top: 0, left: 0, height: "100%", background: COLORS.primary, borderRadius: RADIUS.full,
+            width: duration ? `${Math.min(100, (current / duration) * 100)}%` : "0%",
+          }} />
+          <div style={{
+            position: "absolute", top: "50%", transform: "translate(-50%, -50%)",
+            left: duration ? `${Math.min(100, (current / duration) * 100)}%` : "0%",
+            width: 11, height: 11, borderRadius: RADIUS.full, background: "#FFFFFF", boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+          }} />
+        </div>
       </div>
     </div>
   );
@@ -882,6 +956,7 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [timestamps, setTimestamps] = useState(Array(track.lines.length).fill(null));
   const [activeIdx, setActiveIdx] = useState(0);
   const [rate, setRate] = useState(1);
@@ -892,13 +967,32 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
     if (!a) return;
     const onTime = () => setCurrent(a.currentTime);
     const onEnd = () => setPlaying(false);
+    const onMeta = () => setDuration(a.duration || 0);
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("ended", onEnd);
+    a.addEventListener("loadedmetadata", onMeta);
+    a.addEventListener("durationchange", onMeta);
     return () => {
       a.removeEventListener("timeupdate", onTime);
       a.removeEventListener("ended", onEnd);
+      a.removeEventListener("loadedmetadata", onMeta);
+      a.removeEventListener("durationchange", onMeta);
     };
   }, []);
+
+  // Jump playback to an exact time — used by the scrubber, the skip
+  // buttons, and clicking a line in the preview to review it directly.
+  const seekTo = useCallback((t) => {
+    const a = audioRef.current;
+    if (!a) return;
+    const clamped = Math.max(0, Math.min(t, a.duration || t));
+    a.currentTime = clamped;
+    setCurrent(clamped);
+  }, []);
+
+  const skip = useCallback((deltaSec) => {
+    seekTo((audioRef.current?.currentTime ?? 0) + deltaSec);
+  }, [seekTo]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = rate;
@@ -1052,8 +1146,11 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
             track={track}
             timestamps={timestamps}
             current={current}
+            duration={duration}
             playing={playing}
             onTogglePlay={togglePlay}
+            onSeek={seekTo}
+            onSkip={skip}
           />
         )}
 

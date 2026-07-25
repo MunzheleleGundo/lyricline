@@ -191,7 +191,10 @@ async function transcribeWithTimestamps(audioURL, apiKey) {
   const startResp = await fetch("https://api.assemblyai.com/v2/transcript", {
     method: "POST",
     headers: { authorization: apiKey, "content-type": "application/json" },
-    body: JSON.stringify({ audio_url: audioURL }),
+    // language_detection: without this AssemblyAI assumes English, which
+    // produces a near-garbage transcript (and therefore garbage alignment)
+    // for anything sung in another language.
+    body: JSON.stringify({ audio_url: audioURL, language_detection: true }),
   });
   if (!startResp.ok) throw new Error(`AssemblyAI submit failed: ${startResp.status}`);
   const { id } = await startResp.json();
@@ -214,29 +217,38 @@ async function transcribeWithTimestamps(audioURL, apiKey) {
 // word of that line. Lines whose first word can't be confidently matched
 // fall back to interpolating between their nearest matched neighbors, so
 // every line still gets a reasonable timestamp.
+//
+// This is deliberately conservative: an earlier version also accepted a
+// "fuzzy" match on any nearby word with the same first letter and similar
+// length. That fired constantly on poor transcripts (e.g. non-English
+// lyrics AssemblyAI mistranscribes) and produced a run of confidently-wrong
+// timestamps all clustered within a second or two of each other — worse
+// than just admitting the line couldn't be matched. Only exact word matches
+// are trusted now; anything else is left null and smoothed by interpolation.
+const MIN_LINE_GAP_SEC = 0.35; // real lyric lines are essentially never this close together
+
 function alignLinesToWords(lines, words) {
   const transcriptTokens = words.map((w) => normalizeWord(w.text));
   let cursor = 0;
+  let lastAcceptedTime = -Infinity;
   const rawTimestamps = lines.map(() => null);
 
   lines.forEach((line, lineIdx) => {
     const firstWord = normalizeWord((line.split(/\s+/)[0] || ""));
     if (!firstWord) return;
-    const searchLimit = Math.min(transcriptTokens.length, cursor + 400);
+    const searchLimit = Math.min(transcriptTokens.length, cursor + 250);
     for (let i = cursor; i < searchLimit; i++) {
-      if (transcriptTokens[i] === firstWord) {
-        rawTimestamps[lineIdx] = words[i].start / 1000;
-        cursor = i + 1;
-        return;
-      }
-    }
-    // fuzzy fallback: allow a short edit-distance match nearby
-    for (let i = cursor; i < searchLimit; i++) {
-      if (Math.abs(transcriptTokens[i].length - firstWord.length) <= 1 && transcriptTokens[i][0] === firstWord[0]) {
-        rawTimestamps[lineIdx] = words[i].start / 1000;
-        cursor = i + 1;
-        return;
-      }
+      if (transcriptTokens[i] !== firstWord) continue;
+      const candidateTime = words[i].start / 1000;
+      // A match that lands suspiciously close to the previous accepted
+      // line is more likely the aligner grabbing a stray nearby word than
+      // a real, distinct line starting — skip it and let interpolation
+      // handle this line instead of trusting a probably-wrong timestamp.
+      if (candidateTime - lastAcceptedTime < MIN_LINE_GAP_SEC) continue;
+      rawTimestamps[lineIdx] = candidateTime;
+      lastAcceptedTime = candidateTime;
+      cursor = i + 1;
+      return;
     }
   });
 
