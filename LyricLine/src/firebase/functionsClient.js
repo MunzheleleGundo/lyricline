@@ -29,7 +29,7 @@ export async function searchYouTube(query) {
 // screen once a channel is linked, so there's nothing to search for.
 export async function listChannelVideos(channelId) {
   const data = await authedFetch(`youtubeChannelVideos?channelId=${encodeURIComponent(channelId)}`);
-  return { results: data.results || [], filtered: !!data.filtered };
+  return data.results || [];
 }
 
 // Resolves whatever an artist pastes at signup (a channel URL, an @handle,

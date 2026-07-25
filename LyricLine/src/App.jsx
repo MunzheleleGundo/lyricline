@@ -468,7 +468,6 @@ function UploadScreen({ user, onCreated, onCancel }) {
   const [channelVideos, setChannelVideos] = useState([]);
   const [channelLoading, setChannelLoading] = useState(!!user?.youtubeChannelId);
   const [channelError, setChannelError] = useState("");
-  const [channelFiltered, setChannelFiltered] = useState(true);
   const [selectedVideoId, setSelectedVideoId] = useState(null);
 
   useEffect(() => {
@@ -478,11 +477,8 @@ function UploadScreen({ user, onCreated, onCancel }) {
       setChannelLoading(true);
       setChannelError("");
       try {
-        const { results, filtered } = await listChannelVideos(user.youtubeChannelId);
-        if (!cancelled) {
-          setChannelVideos(results);
-          setChannelFiltered(filtered);
-        }
+        const results = await listChannelVideos(user.youtubeChannelId);
+        if (!cancelled) setChannelVideos(results);
       } catch (err) {
         if (!cancelled) setChannelError(err.message || "Couldn't load your channel videos.");
       } finally {
@@ -593,12 +589,6 @@ function UploadScreen({ user, onCreated, onCancel }) {
                   </button>
                 ))}
               </div>
-            )}
-            {!channelLoading && !channelError && channelVideos.length > 0 && !channelFiltered && (
-              <p style={{ ...TYPE.styles.caption, color: COLORS.textFaint, marginTop: SPACE.sm, marginBottom: 0 }}>
-                None of your uploads are tagged as "Music" by YouTube, so this shows everything on your
-                channel — just pick the right one.
-              </p>
             )}
             <p style={{ ...TYPE.styles.caption, color: COLORS.textFaint, marginTop: SPACE.sm, marginBottom: 0 }}>
               Title, artist name, and cover art fill in automatically. YouTube doesn't let us pull the

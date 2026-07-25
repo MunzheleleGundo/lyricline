@@ -1,114 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Play, Pause, Download, Video, Loader2 } from "lucide-react";
+import { Play, Pause, Download, Video, Loader2, Pencil } from "lucide-react";
 import { COLORS, TYPE, cardStyle, primaryBtn, ghostBtn, pillStyle } from "../theme/tokens";
 import PageShell from "./PageShell";
-
-const TEMPLATES = [
-  { id: "karaoke", name: "Karaoke Glow", desc: "Big centered current line, dim lines above/below." },
-  { id: "minimal", name: "Minimal Type", desc: "Clean single-line type on a plain background." },
-  { id: "waveform", name: "Waveform Pulse", desc: "Live audio-reactive bars behind the lyric." },
-];
-
-const W = 720, H = 720; // square export, good for social
-
-function drawBackground(ctx, coverImg) {
-  ctx.fillStyle = COLORS.background;
-  ctx.fillRect(0, 0, W, H);
-  if (coverImg) {
-    ctx.save();
-    ctx.globalAlpha = 0.28;
-    ctx.filter = "blur(18px)";
-    ctx.drawImage(coverImg, -40, -40, W + 80, H + 80);
-    ctx.restore();
-    ctx.filter = "none";
-  }
-}
-
-function wrapLine(ctx, text, maxWidth) {
-  const words = text.split(" ");
-  const lines = [];
-  let cur = "";
-  for (const w of words) {
-    const test = cur ? cur + " " + w : w;
-    if (ctx.measureText(test).width > maxWidth && cur) {
-      lines.push(cur);
-      cur = w;
-    } else {
-      cur = test;
-    }
-  }
-  if (cur) lines.push(cur);
-  return lines;
-}
-
-function renderKaraoke(ctx, { track, activeIdx, coverImg }) {
-  drawBackground(ctx, coverImg);
-  const lines = track.lines;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  const positions = [-1, 0, 1];
-  positions.forEach((offset) => {
-    const idx = activeIdx + offset;
-    if (idx < 0 || idx >= lines.length) return;
-    const isActive = offset === 0;
-    ctx.font = isActive ? "700 34px Fraunces, serif" : "400 20px Fraunces, serif";
-    ctx.fillStyle = isActive ? COLORS.primary : "rgba(242,239,233,0.35)";
-    const wrapped = wrapLine(ctx, lines[idx], W - 100);
-    const lineHeight = isActive ? 42 : 28;
-    const startY = H / 2 + offset * 90 - ((wrapped.length - 1) * lineHeight) / 2;
-    wrapped.forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lineHeight));
-  });
-
-  ctx.font = "600 14px Inter, sans-serif";
-  ctx.fillStyle = "rgba(242,239,233,0.5)";
-  ctx.fillText(`${track.title} · ${track.artist}`, W / 2, H - 40);
-}
-
-function renderMinimal(ctx, { track, activeIdx, coverImg }) {
-  drawBackground(ctx, coverImg);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const line = track.lines[activeIdx] ?? "";
-  ctx.font = "600 30px Inter, sans-serif";
-  ctx.fillStyle = COLORS.textPrimary;
-  const wrapped = wrapLine(ctx, line, W - 120);
-  const lineHeight = 40;
-  const startY = H / 2 - ((wrapped.length - 1) * lineHeight) / 2;
-  wrapped.forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lineHeight));
-
-  ctx.font = "500 13px Inter, sans-serif";
-  ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText(`${track.title} · ${track.artist}`, W / 2, H - 50);
-}
-
-function renderWaveform(ctx, { track, activeIdx, coverImg, freqData }) {
-  drawBackground(ctx, coverImg);
-
-  if (freqData && freqData.length) {
-    const bars = 48;
-    const step = Math.floor(freqData.length / bars);
-    const barWidth = W / bars;
-    ctx.fillStyle = "rgba(232,185,77,0.55)";
-    for (let i = 0; i < bars; i++) {
-      const v = freqData[i * step] / 255;
-      const barH = v * 160;
-      ctx.fillRect(i * barWidth + 2, H - 120 - barH, barWidth - 4, barH);
-    }
-  }
-
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = "700 26px Fraunces, serif";
-  ctx.fillStyle = COLORS.textPrimary;
-  const line = track.lines[activeIdx] ?? "";
-  const wrapped = wrapLine(ctx, line, W - 120);
-  const lineHeight = 34;
-  const startY = H / 2 - 60 - ((wrapped.length - 1) * lineHeight) / 2;
-  wrapped.forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lineHeight));
-}
-
-const RENDERERS = { karaoke: renderKaraoke, minimal: renderMinimal, waveform: renderWaveform };
+import { updateTrackLines } from "../firebase/tracksService";
+import { W, H, TEMPLATES, RENDERERS, activeIdxFor } from "./lyricStudio/renderers";
+import LyricLineEditor from "./lyricStudio/LyricLineEditor";
 
 export default function LyricVideoStudio({ onBack, myTracks }) {
   const [selectedId, setSelectedId] = useState(myTracks[0]?.id || "");
@@ -117,6 +13,8 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
   const [recording, setRecording] = useState(false);
   const [videoURL, setVideoURL] = useState(null);
   const [error, setError] = useState("");
+  const [lines, setLines] = useState([]);
+  const [editingIdx, setEditingIdx] = useState(null);
 
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
@@ -128,8 +26,20 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const destRef = useRef(null);
+  const linesRef = useRef([]); // mirrors `lines` for the rAF draw loop, which reads outside React's render cycle
 
   const track = myTracks.find((t) => t.id === selectedId) || null;
+
+  // The lyrics shown/edited here are a local, editable copy of the track's
+  // lines — reset whenever the selected track changes.
+  useEffect(() => {
+    setLines(track?.lines ? [...track.lines] : []);
+    setEditingIdx(null);
+  }, [track?.id]);
+
+  useEffect(() => {
+    linesRef.current = lines;
+  }, [lines]);
 
   // Load cover art once per track (crossOrigin required so the canvas isn't
   // "tainted" — see cors.json in the project root / README for setup).
@@ -143,32 +53,24 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
     img.src = track.coverURL;
   }, [track?.coverURL]);
 
-  const activeIdxFor = useCallback((t, current) => {
-    let idx = -1;
-    for (let i = 0; i < (t.timestamps?.length || 0); i++) {
-      if (t.timestamps[i] <= current) idx = i;
-      else break;
-    }
-    return Math.max(0, idx);
-  }, []);
-
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const a = audioRef.current;
     if (!canvas || !track) return;
     const ctx = canvas.getContext("2d");
     const current = a?.currentTime || 0;
-    const activeIdx = activeIdxFor(track, current);
+    const currentLines = linesRef.current;
+    const activeIdx = activeIdxFor(track.timestamps, current);
 
     if (analyserRef.current && freqDataRef.current) {
       analyserRef.current.getByteFrequencyData(freqDataRef.current);
     }
 
-    const renderer = RENDERERS[templateId] || renderKaraoke;
-    renderer(ctx, { track, activeIdx, coverImg: coverImgRef.current, freqData: freqDataRef.current });
+    const renderer = RENDERERS[templateId] || RENDERERS.karaoke;
+    renderer(ctx, { track, lines: currentLines, activeIdx, coverImg: coverImgRef.current, freqData: freqDataRef.current });
 
     rafRef.current = requestAnimationFrame(draw);
-  }, [track, templateId, activeIdxFor]);
+  }, [track, templateId]);
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(draw);
@@ -202,6 +104,27 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
     if (playing) a.pause();
     else a.play();
     setPlaying(!playing);
+  };
+
+  // Opens the editor for whichever line is currently active/on-screen —
+  // "click the lyric area to edit the current line".
+  const handleCanvasActivate = () => {
+    if (recording) return;
+    const current = audioRef.current?.currentTime || 0;
+    const idx = activeIdxFor(track.timestamps, current);
+    if (idx < 0 || idx >= lines.length) return;
+    setEditingIdx(idx);
+  };
+
+  const saveEdit = (text) => {
+    if (editingIdx === null) return;
+    if (text) {
+      const next = [...lines];
+      next[editingIdx] = text;
+      setLines(next);
+      if (track?.id) updateTrackLines(track.id, next);
+    }
+    setEditingIdx(null);
   };
 
   const startRecording = () => {
@@ -300,12 +223,39 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
       </p>
 
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-        <canvas
-          ref={canvasRef}
-          width={W}
-          height={H}
-          style={{ width: "min(100%, 420px)", aspectRatio: "1 / 1", borderRadius: 14, border: `1px solid ${COLORS.border}` }}
-        />
+        <div style={{ position: "relative", width: "min(100%, 420px)" }}>
+          <canvas
+            ref={canvasRef}
+            width={W}
+            height={H}
+            onClick={handleCanvasActivate}
+            onTouchStart={handleCanvasActivate}
+            style={{
+              width: "100%", aspectRatio: "1 / 1", borderRadius: 14, border: `1px solid ${COLORS.border}`,
+              display: "block", cursor: recording ? "default" : "pointer",
+            }}
+          />
+          {!recording && editingIdx === null && (
+            <div
+              style={{
+                position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
+                display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 999,
+                background: "rgba(0,0,0,0.55)", color: "rgba(255,255,255,0.75)",
+                fontFamily: TYPE.body, fontSize: 11, pointerEvents: "none",
+              }}
+            >
+              <Pencil size={11} /> Tap the video to edit this line
+            </div>
+          )}
+          {editingIdx !== null && (
+            <LyricLineEditor
+              lineIndex={editingIdx}
+              value={lines[editingIdx] ?? ""}
+              onSave={saveEdit}
+              onCancel={() => setEditingIdx(null)}
+            />
+          )}
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
@@ -343,7 +293,8 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
       <p style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textFaint, marginTop: 20, lineHeight: 1.6 }}>
         Recording plays the full track in real time to capture it (there's no way to render faster
         client-side). Exports as .webm — universally playable, but if you need .mp4 for a specific
-        platform, run it through a converter afterward.
+        platform, run it through a converter afterward. Tap the preview any time to fix a line — edits
+        save to the track and show up the next time you record.
       </p>
     </PageShell>
   );

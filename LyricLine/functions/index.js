@@ -89,46 +89,21 @@ exports.youtubeChannelVideos = onRequest(
       const itemsData = await itemsResp.json();
 
       const candidates = (itemsData.items || []).filter((item) => item.snippet?.resourceId?.videoId);
-      if (candidates.length === 0) return res.json({ results: [] });
 
-      // The public API has no direct "Releases" endpoint, so we approximate
-      // it: fetch each candidate's category and keep only ones YouTube itself
-      // classifies as Music (categoryId "10") — matches what the channel's
-      // Releases tab shows, filtering out vlogs/shorts/other uploads.
-      const videoIds = candidates.map((item) => item.snippet.resourceId.videoId);
-      const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds.join(",")}&key=${YOUTUBE_API_KEY.value()}`;
-      const detailsResp = await fetch(detailsUrl);
-      if (!detailsResp.ok) throw new Error(`Video details lookup failed: ${detailsResp.status}`);
-      const detailsData = await detailsResp.json();
-
-      const results = (detailsData.items || [])
-        .filter((item) => item.snippet?.categoryId === "10") // 10 = Music
-        .map((item) => ({
-          videoId: item.id,
-          title: item.snippet.title,
-          channelTitle: item.snippet.channelTitle,
-          coverURL: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || null,
-          publishedAt: item.snippet.publishedAt,
-        }));
-
-      // The Music-category filter above is a good signal but not a reliable
-      // one — plenty of artists (or their distributor) never tag uploads
-      // with YouTube's "Music" category even though the video is a real
-      // release. Rather than show an artist an empty list when that
-      // happens, fall back to their full upload list so there's always
-      // something to pick from, and tell the client which mode was used.
-      if (results.length > 0) {
-        return res.json({ results, filtered: true });
-      }
-
-      const fallbackResults = (detailsData.items || []).map((item) => ({
-        videoId: item.id,
+      // No category filtering here — same as the plain youtubeSearch
+      // endpoint, which shows everything including releases. An earlier
+      // version tried to filter to YouTube's "Music" category to approximate
+      // the channel's Releases tab, but plenty of artists' uploads (or their
+      // distributor's) aren't tagged that way, so it just hid real releases.
+      const results = candidates.map((item) => ({
+        videoId: item.snippet.resourceId.videoId,
         title: item.snippet.title,
         channelTitle: item.snippet.channelTitle,
         coverURL: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || null,
         publishedAt: item.snippet.publishedAt,
       }));
-      return res.json({ results: fallbackResults, filtered: false });
+
+      return res.json({ results });
     } catch (err) {
       logger.error("youtubeChannelVideos failed", err);
       res.status(err.status || 500).json({ error: err.message || "Couldn't load channel videos." });

@@ -62,6 +62,15 @@ export async function toggleTrackLike(trackId, uid) {
   });
 }
 
+// Fire-and-forget persistence for in-place lyric edits made from the
+// video studio's tap-to-edit flow. Best-effort, same pattern as
+// recordTrackView — a failed save shouldn't interrupt editing.
+export function updateTrackLines(trackId, lines) {
+  updateDoc(doc(db, TRACKS, trackId), { lines }).catch(() => {
+    // Non-critical — the local preview already reflects the edit.
+  });
+}
+
 export async function getMyLikeStatus(trackId, uid) {
   const snap = await getDoc(doc(db, TRACKS, trackId, "likedBy", uid));
   return snap.exists();
