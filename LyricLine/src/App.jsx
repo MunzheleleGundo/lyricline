@@ -548,7 +548,7 @@ function UploadScreen({ user, onCreated, onCancel }) {
 
         {user?.youtubeChannelId ? (
           <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"] }}>
-            <label style={labelStyle}>Pick the song from your channel</label>
+            <label style={labelStyle}>Pick the release from your channel</label>
             {channelLoading && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0" }}>
                 <Loader2 size={14} className="spin" color={COLORS.textMuted} />
@@ -560,7 +560,8 @@ function UploadScreen({ user, onCreated, onCancel }) {
             )}
             {!channelLoading && !channelError && channelVideos.length === 0 && (
               <p style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted, margin: "4px 0 0" }}>
-                No videos found on your linked channel yet.
+                No music releases found on your channel — this list only shows videos YouTube
+                categorizes as Music, filtering out vlogs, shorts, and other uploads.
               </p>
             )}
             {channelVideos.length > 0 && (

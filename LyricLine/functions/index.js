@@ -83,15 +83,28 @@ exports.youtubeChannelVideos = onRequest(
       const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
       if (!uploadsPlaylistId) return res.status(404).json({ error: "Couldn't find that channel — double check the channel ID." });
 
-      const itemsUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=24&playlistId=${encodeURIComponent(uploadsPlaylistId)}&key=${YOUTUBE_API_KEY.value()}`;
+      const itemsUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${encodeURIComponent(uploadsPlaylistId)}&key=${YOUTUBE_API_KEY.value()}`;
       const itemsResp = await fetch(itemsUrl);
       if (!itemsResp.ok) throw new Error(`Channel videos lookup failed: ${itemsResp.status}`);
       const itemsData = await itemsResp.json();
 
-      const results = (itemsData.items || [])
-        .filter((item) => item.snippet?.resourceId?.videoId)
+      const candidates = (itemsData.items || []).filter((item) => item.snippet?.resourceId?.videoId);
+      if (candidates.length === 0) return res.json({ results: [] });
+
+      // The public API has no direct "Releases" endpoint, so we approximate
+      // it: fetch each candidate's category and keep only ones YouTube itself
+      // classifies as Music (categoryId "10") — matches what the channel's
+      // Releases tab shows, filtering out vlogs/shorts/other uploads.
+      const videoIds = candidates.map((item) => item.snippet.resourceId.videoId);
+      const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds.join(",")}&key=${YOUTUBE_API_KEY.value()}`;
+      const detailsResp = await fetch(detailsUrl);
+      if (!detailsResp.ok) throw new Error(`Video details lookup failed: ${detailsResp.status}`);
+      const detailsData = await detailsResp.json();
+
+      const results = (detailsData.items || [])
+        .filter((item) => item.snippet?.categoryId === "10") // 10 = Music
         .map((item) => ({
-          videoId: item.snippet.resourceId.videoId,
+          videoId: item.id,
           title: item.snippet.title,
           channelTitle: item.snippet.channelTitle,
           coverURL: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || null,
