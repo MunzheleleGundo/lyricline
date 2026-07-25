@@ -111,7 +111,24 @@ exports.youtubeChannelVideos = onRequest(
           publishedAt: item.snippet.publishedAt,
         }));
 
-      res.json({ results });
+      // The Music-category filter above is a good signal but not a reliable
+      // one — plenty of artists (or their distributor) never tag uploads
+      // with YouTube's "Music" category even though the video is a real
+      // release. Rather than show an artist an empty list when that
+      // happens, fall back to their full upload list so there's always
+      // something to pick from, and tell the client which mode was used.
+      if (results.length > 0) {
+        return res.json({ results, filtered: true });
+      }
+
+      const fallbackResults = (detailsData.items || []).map((item) => ({
+        videoId: item.id,
+        title: item.snippet.title,
+        channelTitle: item.snippet.channelTitle,
+        coverURL: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || null,
+        publishedAt: item.snippet.publishedAt,
+      }));
+      return res.json({ results: fallbackResults, filtered: false });
     } catch (err) {
       logger.error("youtubeChannelVideos failed", err);
       res.status(err.status || 500).json({ error: err.message || "Couldn't load channel videos." });
