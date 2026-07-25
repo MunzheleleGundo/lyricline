@@ -12,7 +12,7 @@ const TEMPLATES = [
 const W = 720, H = 720; // square export, good for social
 
 function drawBackground(ctx, coverImg) {
-  ctx.fillStyle = COLORS.ink;
+  ctx.fillStyle = COLORS.background;
   ctx.fillRect(0, 0, W, H);
   if (coverImg) {
     ctx.save();
@@ -53,7 +53,7 @@ function renderKaraoke(ctx, { track, activeIdx, coverImg }) {
     if (idx < 0 || idx >= lines.length) return;
     const isActive = offset === 0;
     ctx.font = isActive ? "700 34px Fraunces, serif" : "400 20px Fraunces, serif";
-    ctx.fillStyle = isActive ? COLORS.gold : "rgba(242,239,233,0.35)";
+    ctx.fillStyle = isActive ? COLORS.primary : "rgba(242,239,233,0.35)";
     const wrapped = wrapLine(ctx, lines[idx], W - 100);
     const lineHeight = isActive ? 42 : 28;
     const startY = H / 2 + offset * 90 - ((wrapped.length - 1) * lineHeight) / 2;
@@ -71,14 +71,14 @@ function renderMinimal(ctx, { track, activeIdx, coverImg }) {
   ctx.textBaseline = "middle";
   const line = track.lines[activeIdx] ?? "";
   ctx.font = "600 30px Inter, sans-serif";
-  ctx.fillStyle = COLORS.cream;
+  ctx.fillStyle = COLORS.textPrimary;
   const wrapped = wrapLine(ctx, line, W - 120);
   const lineHeight = 40;
   const startY = H / 2 - ((wrapped.length - 1) * lineHeight) / 2;
   wrapped.forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lineHeight));
 
   ctx.font = "500 13px Inter, sans-serif";
-  ctx.fillStyle = COLORS.plum;
+  ctx.fillStyle = COLORS.textMuted;
   ctx.fillText(`${track.title} · ${track.artist}`, W / 2, H - 50);
 }
 
@@ -100,7 +100,7 @@ function renderWaveform(ctx, { track, activeIdx, coverImg, freqData }) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = "700 26px Fraunces, serif";
-  ctx.fillStyle = COLORS.cream;
+  ctx.fillStyle = COLORS.textPrimary;
   const line = track.lines[activeIdx] ?? "";
   const wrapped = wrapLine(ctx, line, W - 120);
   const lineHeight = 34;
@@ -258,8 +258,8 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
     return (
       <PageShell onBack={onBack} eyebrow="Lyric video studio" title="No tracks to work with yet" maxWidth={640}>
         <div style={{ ...cardStyle, padding: 32, textAlign: "center" }}>
-          <Video size={22} color={COLORS.plumDim} style={{ marginBottom: 10 }} />
-          <p style={{ color: COLORS.plum, fontFamily: TYPE.body, fontSize: 13, margin: 0 }}>
+          <Video size={22} color={COLORS.textFaint} style={{ marginBottom: 10 }} />
+          <p style={{ color: COLORS.textMuted, fontFamily: TYPE.body, fontSize: 13, margin: 0 }}>
             Publish a track first — the lyric video studio renders from a track you own.
           </p>
         </div>
@@ -272,13 +272,13 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
       <audio ref={audioRef} src={track.audioURL} crossOrigin="anonymous" style={{ display: "none" }} />
 
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.plum, marginBottom: 8 }}>Track</div>
+        <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, marginBottom: 8 }}>Track</div>
         <select
           value={selectedId}
           onChange={(e) => { setSelectedId(e.target.value); setVideoURL(null); }}
           style={{
             width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9,
-            border: `1px solid ${COLORS.line}`, background: COLORS.ink, color: COLORS.cream,
+            border: `1px solid ${COLORS.border}`, background: COLORS.background, color: COLORS.textPrimary,
             fontFamily: TYPE.body, fontSize: 14,
           }}
         >
@@ -295,7 +295,7 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
           </button>
         ))}
       </div>
-      <p style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.plumDim, marginTop: -12, marginBottom: 20 }}>
+      <p style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textFaint, marginTop: -12, marginBottom: 20 }}>
         {TEMPLATES.find((t) => t.id === templateId)?.desc}
       </p>
 
@@ -304,7 +304,7 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
           ref={canvasRef}
           width={W}
           height={H}
-          style={{ width: "min(100%, 420px)", aspectRatio: "1 / 1", borderRadius: 14, border: `1px solid ${COLORS.line}` }}
+          style={{ width: "min(100%, 420px)", aspectRatio: "1 / 1", borderRadius: 14, border: `1px solid ${COLORS.border}` }}
         />
       </div>
 
@@ -340,7 +340,7 @@ export default function LyricVideoStudio({ onBack, myTracks }) {
         </div>
       )}
 
-      <p style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.plumDim, marginTop: 20, lineHeight: 1.6 }}>
+      <p style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textFaint, marginTop: 20, lineHeight: 1.6 }}>
         Recording plays the full track in real time to capture it (there's no way to render faster
         client-side). Exports as .webm — universally playable, but if you need .mp4 for a specific
         platform, run it through a converter afterward.

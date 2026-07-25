@@ -1,12 +1,12 @@
 import React from "react";
-import { COLORS, TYPE, cardStyle } from "../theme/tokens";
+import { COLORS, TYPE, SPACE, cardStyle } from "../theme/tokens";
 import PageShell from "./PageShell";
 
 export default function About({ onBack }) {
   return (
     <PageShell onBack={onBack} eyebrow="About" title="Lyrics, published by the people who wrote them" maxWidth={720}>
-      <div style={{ ...cardStyle, padding: 24, fontFamily: TYPE.body, fontSize: 14, color: COLORS.plum, lineHeight: 1.7 }}>
-        <p style={{ color: COLORS.cream, marginTop: 0 }}>
+      <div className="ll-fade-in" style={{ ...cardStyle, padding: SPACE.xl, fontFamily: TYPE.body, fontSize: 14, color: COLORS.textMuted, lineHeight: 1.7 }}>
+        <p style={{ color: COLORS.textPrimary, marginTop: 0 }}>
           LyricLine started from a simple frustration: most lyrics sites are built on scraped,
           often-wrong transcriptions, with no path back to the artist who actually wrote the song.
         </p>

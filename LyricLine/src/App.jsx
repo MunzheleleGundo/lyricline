@@ -1,61 +1,27 @@
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
-  ArrowRight,
-  BarChart3,
-  Check,
-  ChevronLeft,
-  Clock,
-  Compass,
-  Heart, Image as ImageIcon,
-  Layers,
-  Link2,
-  ListMusic,
-  Loader2,
-  LogOut,
-  Mic2, Music4,
-  Pause,
-  Play,
-  Plus,
-  Search,
-  Sparkles, Tag,
-  TrendingUp,
-  Unlink,
-  Upload,
-  User,
-  Video,
-  Wand2,
-  X,
+  Mic2, Music4, Upload, Play, Pause, Plus, LogOut, User, Clock, Check,
+  ListMusic, Link2, Unlink, Search, Heart, Image as ImageIcon, ChevronLeft,
+  TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers, BarChart3, Video, Loader2, Youtube,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { friendlyAuthError, signIn, signOut, signUp, watchAuth } from "./firebase/authService";
-import { autoAlignLyrics, searchYouTube } from "./firebase/functionsClient";
-import { uploadFile } from "./firebase/storageService";
-import { createTrack, getMyLikeStatus, recordTrackView, toggleTrackLike, watchTracks } from "./firebase/tracksService";
-import About from "./pages/About";
+import {
+  FONT_IMPORT, COLORS, TYPE, SPACE, RADIUS, ELEVATION, MOTION,
+  cardStyle, inputStyle, labelStyle, primaryBtn, ghostBtn, secondaryBtn, badgeStyle, pillStyle,
+} from "./theme/tokens";
+import Discover from "./pages/Discover";
 import AITools from "./pages/AITools";
+import Pricing from "./pages/Pricing";
+import Features from "./pages/Features";
+import About from "./pages/About";
+import SongMeaning from "./pages/SongMeaning";
 import ArtistDashboard from "./pages/ArtistDashboard";
 import Community from "./pages/Community";
-import Discover from "./pages/Discover";
-import Features from "./pages/Features";
-import LyricVideoStudio from "./pages/LyricVideoStudio";
-import Pricing from "./pages/Pricing";
 import Sitemap from "./pages/Sitemap";
-import SongMeaning from "./pages/SongMeaning";
-import {
-  COLORS,
-  ELEVATION,
-  FONT_IMPORT,
-  MOTION,
-  RADIUS,
-  SPACE,
-  TYPE,
-  badgeStyle,
-  cardStyle,
-  ghostBtn,
-  inputStyle, labelStyle,
-  pillStyle,
-  primaryBtn,
-  secondaryBtn,
-} from "./theme/tokens";
+import LyricVideoStudio from "./pages/LyricVideoStudio";
+import { signUp, signIn, signOut, watchAuth, friendlyAuthError, linkYouTubeChannel } from "./firebase/authService";
+import { createTrack, watchTracks, toggleTrackLike, getMyLikeStatus, recordTrackView } from "./firebase/tracksService";
+import { uploadFile } from "./firebase/storageService";
+import { searchYouTube, listChannelVideos, resolveYouTubeChannel, autoAlignLyrics } from "./firebase/functionsClient";
 
 /*
   LyricLine — a self-publish synced-lyrics platform
@@ -104,43 +70,44 @@ function ServiceMark({ color }) {
 
 function ConnectionsPanel({ connections, onToggle, onBack }) {
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink, padding: "40px 20px" }}>
-      <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 24 }}>← Back</button>
+    <div style={{ minHeight: "100vh", background: COLORS.background, padding: `${SPACE["3xl"]}px 20px` }}>
+      <div className="ll-fade-in" style={{ maxWidth: 560, margin: "0 auto" }}>
+        <button onClick={onBack} style={{ ...ghostBtn, marginBottom: SPACE["2xl"] }}>← Back</button>
 
-        <h1 style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: COLORS.cream, margin: "0 0 6px" }}>Connections</h1>
-        <p style={{ color: COLORS.plum, fontSize: 14, margin: "0 0 28px", lineHeight: 1.5 }}>
+        <h1 style={{ ...TYPE.styles.h1, fontSize: 26, color: COLORS.textPrimary, margin: "0 0 6px" }}>Connections</h1>
+        <p style={{ color: COLORS.textMuted, fontSize: 14, margin: `0 0 ${SPACE["3xl"]}px`, lineHeight: 1.5 }}>
           Link a streaming account to bring in tracks and match them with synced lyrics. This is a preview —
           connecting here doesn't send any data anywhere yet.
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
           {MUSIC_SERVICES.map((s) => {
             const isConnected = !!connections[s.id];
             return (
               <div
                 key={s.id}
                 style={{
-                  display: "flex", alignItems: "center", gap: 14, padding: 18, flexWrap: "wrap",
-                  background: COLORS.inkRaised, border: `1px solid ${isConnected ? s.color + "55" : COLORS.line}`,
-                  borderRadius: 12,
+                  display: "flex", alignItems: "center", gap: 14, padding: SPACE.xl, flexWrap: "wrap",
+                  background: COLORS.surfaceRaised, border: `1px solid ${isConnected ? s.color + "55" : COLORS.border}`,
+                  borderRadius: RADIUS.xl, boxShadow: ELEVATION.sm,
                 }}
               >
                 <ServiceMark color={s.color} />
                 <div style={{ flex: 1, minWidth: 140 }}>
-                  <div style={{ fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.cream }}>{s.name}</div>
-                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, marginTop: 2 }}>
+                  <div style={{ fontFamily: TYPE.body, fontWeight: 700, fontSize: 15, color: COLORS.textPrimary }}>{s.name}</div>
+                  <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>
                     {isConnected ? "Connected" : s.blurb}
                   </div>
                 </div>
                 <button
                   onClick={() => onToggle(s.id)}
                   style={{
-                    padding: "8px 14px", borderRadius: 8, fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 700,
+                    padding: "8px 14px", borderRadius: RADIUS.md, fontFamily: TYPE.body, fontSize: 12, fontWeight: 700,
                     display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
-                    border: `1px solid ${isConnected ? COLORS.line : s.color}`,
+                    border: `1px solid ${isConnected ? COLORS.border : s.color}`,
                     background: isConnected ? "transparent" : s.color,
-                    color: isConnected ? COLORS.plum : "#0B0D10",
+                    color: isConnected ? COLORS.textMuted : "#0B0D10",
+                    transition: `background ${MOTION.fast}, border-color ${MOTION.fast}`,
                   }}
                 >
                   {isConnected ? (
@@ -158,7 +125,7 @@ function ConnectionsPanel({ connections, onToggle, onBack }) {
           })}
         </div>
 
-        <p style={{ fontSize: 12, color: COLORS.plumDim, marginTop: 24, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 12, color: COLORS.textFaint, marginTop: SPACE["2xl"], lineHeight: 1.6 }}>
           Real account linking isn't set up yet — each service needs its own API credentials before this can log in for real.
         </p>
       </div>
@@ -169,58 +136,63 @@ function ConnectionsPanel({ connections, onToggle, onBack }) {
 // ---------- Landing ----------
 function LandingPage({ onGetStarted, trackCount, artistCount }) {
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px clamp(16px, 5vw, 40px)" }}>
+    <div style={{ minHeight: "100vh", background: COLORS.background, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+      {/* subtle waveform-inspired backdrop accent, purely decorative */}
+      <svg
+        aria-hidden="true"
+        width="100%" height="240" viewBox="0 0 800 240" preserveAspectRatio="none"
+        style={{ position: "absolute", top: 0, left: 0, opacity: 0.5, pointerEvents: "none" }}
+      >
+        {Array.from({ length: 60 }).map((_, i) => {
+          const h = 6 + Math.abs(Math.sin(i * 0.4)) * 70 + Math.abs(Math.sin(i * 1.3)) * 20;
+          return (
+            <rect key={i} x={i * 13.5} y={40 - h / 2} width="4" height={h} rx="2"
+              fill={i % 5 === 0 ? COLORS.primary : COLORS.border} opacity={i % 5 === 0 ? 0.5 : 0.7} />
+          );
+        })}
+      </svg>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: `${SPACE.xl}px clamp(16px, 5vw, 40px)`, position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Mic2 color={COLORS.gold} size={20} />
-          <span style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: COLORS.cream }}>LyricLine</span>
+          <Mic2 color={COLORS.primary} size={20} />
+          <span style={{ ...TYPE.styles.h4, fontFamily: TYPE.display, fontSize: 18, color: COLORS.textPrimary }}>LyricLine</span>
         </div>
         <button onClick={onGetStarted} style={{ ...ghostBtn, padding: "8px 16px" }}>Sign in</button>
       </div>
 
       <div
+        className="ll-fade-in"
         style={{
           flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          textAlign: "center", padding: "40px clamp(16px, 6vw, 40px)",
+          textAlign: "center", padding: "40px clamp(16px, 6vw, 40px)", position: "relative",
         }}
       >
-        <div
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20,
-            border: `1px solid ${COLORS.line}`, color: COLORS.gold, fontFamily: "Inter, sans-serif", fontSize: 12,
-            fontWeight: 700, marginBottom: 22,
-          }}
-        >
+        <div style={{ ...badgeStyle("primary"), marginBottom: SPACE["2xl"], padding: "6px 14px" }}>
           <Sparkles size={13} /> Artist-owned, line-by-line synced lyrics
         </div>
-        <h1
-          style={{
-            fontFamily: "Fraunces, serif", fontWeight: 700, color: COLORS.cream, margin: "0 0 18px",
-            fontSize: "clamp(32px, 6vw, 56px)", lineHeight: 1.08, maxWidth: 780,
-          }}
-        >
-          Lyrics that move <span style={{ color: COLORS.gold, fontStyle: "italic" }}>with</span> the song
+        <h1 style={{ ...TYPE.styles.display, color: COLORS.textPrimary, margin: "0 0 18px", maxWidth: 780 }}>
+          Lyrics that move <span style={{ color: COLORS.primary, fontStyle: "italic" }}>with</span> the song
         </h1>
-        <p style={{ color: COLORS.plum, fontFamily: "Inter, sans-serif", fontSize: "clamp(14px, 2vw, 17px)", maxWidth: 520, lineHeight: 1.6, margin: "0 0 32px" }}>
+        <p style={{ color: COLORS.textMuted, fontFamily: TYPE.body, fontSize: "clamp(14px, 2vw, 17px)", maxWidth: 520, lineHeight: 1.6, margin: `0 0 ${SPACE["3xl"]}px` }}>
           A self-publish home for word-perfect, time-synced lyrics — built by artists, for artists.
           No scraped transcriptions, no ads over your words. Just the song, and the line that's playing right now.
         </p>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-          <button onClick={onGetStarted} style={{ ...primaryBtn, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+        <div style={{ display: "flex", gap: SPACE.md, flexWrap: "wrap", justifyContent: "center" }}>
+          <button onClick={onGetStarted} style={primaryBtn}>
             Get started <ArrowRight size={16} />
           </button>
-          <button onClick={onGetStarted} style={{ ...ghostBtn, cursor: "pointer" }}>Browse the catalog</button>
+          <button onClick={onGetStarted} style={ghostBtn}>Browse the catalog</button>
         </div>
 
-        <div style={{ display: "flex", gap: "clamp(20px, 6vw, 56px)", marginTop: 56, flexWrap: "wrap", justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: "clamp(20px, 6vw, 56px)", marginTop: SPACE["7xl"] - 12, flexWrap: "wrap", justifyContent: "center" }}>
           {[
             { label: "Tracks published", value: trackCount },
             { label: "Artists", value: artistCount },
             { label: "Synced, not scraped", value: "100%" },
           ].map((s) => (
             <div key={s.label}>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 28, color: COLORS.gold, fontWeight: 700 }}>{s.value}</div>
-              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: COLORS.plum, marginTop: 2 }}>{s.label}</div>
+              <div style={{ fontFamily: TYPE.display, fontSize: 28, color: COLORS.primary, fontWeight: 700 }}>{s.value}</div>
+              <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -269,7 +241,7 @@ function AuthScreen({ onBack }) {
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: SPACE["3xl"], justifyContent: "center" }}>
           <Mic2 color={COLORS.primary} size={26} strokeWidth={1.75} />
-          <span style={{ ...TYPE.scale.h2, color: COLORS.textPrimary, margin: 0 }}>LyricLine</span>
+          <span style={{ ...TYPE.styles.h2, color: COLORS.textPrimary, margin: 0 }}>LyricLine</span>
         </div>
 
         <div style={{ ...cardStyle, boxShadow: ELEVATION.lg, padding: "clamp(22px, 5vw, 32px)" }}>
@@ -291,10 +263,10 @@ function AuthScreen({ onBack }) {
             ))}
           </div>
 
-          <h1 style={{ ...TYPE.scale.h3, color: COLORS.textPrimary, margin: "0 0 6px" }}>
+          <h1 style={{ ...TYPE.styles.h3, color: COLORS.textPrimary, margin: "0 0 6px" }}>
             {mode === "signin" ? "Welcome back" : "Set up your page"}
           </h1>
-          <p style={{ ...TYPE.scale.body, color: COLORS.textMuted, margin: `0 0 ${SPACE["2xl"]}px` }}>
+          <p style={{ ...TYPE.styles.body, color: COLORS.textMuted, margin: `0 0 ${SPACE["2xl"]}px` }}>
             Artists publish their own lyrics here — you keep the rights, you set the sync.
           </p>
 
@@ -369,8 +341,115 @@ function AuthScreen({ onBack }) {
   );
 }
 
+// ---------- Link YouTube channel (artist onboarding step) ----------
+// Shown once, right after an artist registers. Once this is saved, the
+// publish screen lists videos straight from this channel — no more typing
+// their own name/song into a search box every time they publish.
+function LinkChannelScreen({ uid, onLinked, onSkip }) {
+  const [input, setInput] = useState("");
+  const [resolving, setResolving] = useState(false);
+  const [error, setError] = useState("");
+  const [found, setFound] = useState(null); // { channelId, title, thumbnailURL }
+  const [saving, setSaving] = useState(false);
+
+  const findChannel = async () => {
+    if (!input.trim() || resolving) return;
+    setResolving(true);
+    setError("");
+    setFound(null);
+    try {
+      const result = await resolveYouTubeChannel(input.trim());
+      setFound(result);
+    } catch (err) {
+      setError(err.message || "Couldn't find that channel.");
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const confirmChannel = async () => {
+    if (!found || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await linkYouTubeChannel(uid, found.channelId);
+      onLinked(found.channelId);
+    } catch (err) {
+      setError(err.message || "Couldn't save your channel. Please try again.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: COLORS.background, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div className="ll-fade-in" style={{ width: "100%", maxWidth: 440 }}>
+        <div style={{ ...cardStyle, boxShadow: ELEVATION.lg, padding: "clamp(22px, 5vw, 32px)", textAlign: "center" }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: RADIUS.full, background: COLORS.primarySoft,
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+          }}>
+            <Youtube size={22} color={COLORS.primary} />
+          </div>
+          <h1 style={{ ...TYPE.styles.h3, color: COLORS.textPrimary, margin: "0 0 6px" }}>Connect your YouTube channel</h1>
+          <p style={{ ...TYPE.styles.body, color: COLORS.textMuted, margin: `0 0 ${SPACE["2xl"]}px` }}>
+            Link it once here — from then on, publishing a track means picking a video from your own
+            channel instead of searching for your name every time.
+          </p>
+
+          <div style={{ textAlign: "left" }}>
+            <label style={labelStyle}>Channel link, @handle, or channel ID</label>
+            <div style={{ display: "flex", gap: SPACE.sm }}>
+              <input
+                value={input}
+                onChange={(e) => { setInput(e.target.value); setFound(null); }}
+                onKeyDown={(e) => e.key === "Enter" && findChannel()}
+                placeholder="youtube.com/@yourname"
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button onClick={findChannel} disabled={resolving || !input.trim()} style={{ ...secondaryBtn, opacity: resolving ? 0.6 : 1, whiteSpace: "nowrap" }}>
+                {resolving ? <Loader2 size={14} className="spin" /> : "Find"}
+              </button>
+            </div>
+          </div>
+
+          {error && <p role="alert" style={{ color: COLORS.danger, fontSize: 12, margin: `${SPACE.md}px 0 0`, fontFamily: TYPE.body }}>{error}</p>}
+
+          {found && (
+            <div className="ll-fade-in" style={{
+              display: "flex", alignItems: "center", gap: SPACE.md, marginTop: SPACE.lg, padding: SPACE.md,
+              borderRadius: RADIUS.lg, border: `1px solid ${COLORS.primary}`, background: COLORS.primarySoft, textAlign: "left",
+            }}>
+              {found.thumbnailURL ? (
+                <img src={found.thumbnailURL} alt="" style={{ width: 40, height: 40, borderRadius: RADIUS.full, objectFit: "cover" }} />
+              ) : (
+                <div style={{ width: 40, height: 40, borderRadius: RADIUS.full, background: COLORS.border }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: TYPE.body, fontSize: 13, fontWeight: 700, color: COLORS.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{found.title}</div>
+                <div style={{ fontFamily: TYPE.body, fontSize: 11, color: COLORS.textMuted }}>Is this your channel?</div>
+              </div>
+            </div>
+          )}
+
+          <button
+            disabled={!found || saving}
+            onClick={confirmChannel}
+            style={{ ...primaryBtn, width: "100%", marginTop: SPACE["2xl"], opacity: found && !saving ? 1 : 0.45 }}
+          >
+            {saving && <Loader2 size={14} className="spin" />}
+            {saving ? "Saving…" : "Use this channel"}
+          </button>
+          <button onClick={onSkip} style={{ ...ghostBtn, width: "100%", marginTop: SPACE.sm }}>
+            Skip for now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Upload ----------
-function UploadScreen({ onCreated, onCancel }) {
+function UploadScreen({ user, onCreated, onCancel }) {
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [lyricsText, setLyricsText] = useState("");
@@ -384,6 +463,33 @@ function UploadScreen({ onCreated, onCancel }) {
   const fileRef = useRef(null);
   const coverRef = useRef(null);
 
+  // Channel-linked artists: load their own uploads once on mount, so there's
+  // nothing to type or search for — they just pick the song they're publishing.
+  const [channelVideos, setChannelVideos] = useState([]);
+  const [channelLoading, setChannelLoading] = useState(!!user?.youtubeChannelId);
+  const [channelError, setChannelError] = useState("");
+  const [selectedVideoId, setSelectedVideoId] = useState(null);
+
+  useEffect(() => {
+    if (!user?.youtubeChannelId) return;
+    let cancelled = false;
+    (async () => {
+      setChannelLoading(true);
+      setChannelError("");
+      try {
+        const results = await listChannelVideos(user.youtubeChannelId);
+        if (!cancelled) setChannelVideos(results);
+      } catch (err) {
+        if (!cancelled) setChannelError(err.message || "Couldn't load your channel videos.");
+      } finally {
+        if (!cancelled) setChannelLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.youtubeChannelId]);
+
+  // Fallback for artists who haven't linked a channel yet (e.g. skipped
+  // onboarding) — a manual search, same as before.
   const [ytQuery, setYtQuery] = useState("");
   const [ytResults, setYtResults] = useState([]);
   const [ytSearching, setYtSearching] = useState(false);
@@ -408,6 +514,7 @@ function UploadScreen({ onCreated, onCancel }) {
     setTitle(r.title);
     setArtist(r.channelTitle); // channel name — often the artist, but not guaranteed
     if (r.coverURL) setCoverURL(r.coverURL); // external URL — no coverFile, so nothing to upload
+    setSelectedVideoId(r.videoId);
     setYtResults([]);
     setYtQuery("");
   };
@@ -434,58 +541,108 @@ function UploadScreen({ onCreated, onCancel }) {
       <div className="ll-fade-in" style={{ maxWidth: 640, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: SPACE.sm }}>
           <span style={badgeStyle("primary")}>Step 1 of 2</span>
-          <span style={{ ...TYPE.scale.caption, color: COLORS.textFaint }}>Publish details, then sync timestamps</span>
+          <span style={{ ...TYPE.styles.caption, color: COLORS.textFaint }}>Publish details, then sync timestamps</span>
         </div>
-        <h1 style={{ ...TYPE.scale.h1, color: COLORS.textPrimary, margin: "0 0 6px" }}>Publish a track</h1>
-        <p style={{ ...TYPE.scale.body, color: COLORS.textMuted, margin: `0 0 ${SPACE["3xl"]}px` }}>Add your song, then paste the lyrics line by line. You'll sync timestamps next.</p>
+        <h1 style={{ ...TYPE.styles.h1, color: COLORS.textPrimary, margin: "0 0 6px" }}>Publish a track</h1>
+        <p style={{ ...TYPE.styles.body, color: COLORS.textMuted, margin: `0 0 ${SPACE["3xl"]}px` }}>Add your song, then paste the lyrics line by line. You'll sync timestamps next.</p>
 
-        <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"] }}>
-          <label style={labelStyle}>Fill from YouTube (optional)</label>
-          <div style={{ display: "flex", gap: SPACE.sm }}>
-            <input
-              value={ytQuery}
-              onChange={(e) => setYtQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && runYouTubeSearch()}
-              placeholder="Search by song or artist name"
-              style={{ ...inputStyle, flex: 1 }}
-            />
-            <button onClick={runYouTubeSearch} disabled={ytSearching} style={{ ...secondaryBtn, opacity: ytSearching ? 0.6 : 1, whiteSpace: "nowrap" }}>
-              {ytSearching ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
-              {ytSearching ? "Searching…" : "Search"}
-            </button>
+        {user?.youtubeChannelId ? (
+          <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"] }}>
+            <label style={labelStyle}>Pick the song from your channel</label>
+            {channelLoading && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0" }}>
+                <Loader2 size={14} className="spin" color={COLORS.textMuted} />
+                <span style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted }}>Loading your videos…</span>
+              </div>
+            )}
+            {channelError && (
+              <p style={{ color: COLORS.danger, fontSize: 12, margin: "4px 0 0" }}>{channelError}</p>
+            )}
+            {!channelLoading && !channelError && channelVideos.length === 0 && (
+              <p style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted, margin: "4px 0 0" }}>
+                No videos found on your linked channel yet.
+              </p>
+            )}
+            {channelVideos.length > 0 && (
+              <div className="ll-fade-in" style={{ marginTop: SPACE.sm, display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
+                {channelVideos.map((r) => (
+                  <button
+                    key={r.videoId}
+                    onClick={() => applyYouTubeResult(r)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: RADIUS.md, cursor: "pointer",
+                      background: selectedVideoId === r.videoId ? COLORS.primarySoft : COLORS.hover,
+                      border: `1px solid ${selectedVideoId === r.videoId ? COLORS.primary : COLORS.border}`, textAlign: "left",
+                      transition: `background ${MOTION.fast}, border-color ${MOTION.fast}`,
+                    }}
+                  >
+                    {r.coverURL ? (
+                      <img src={r.coverURL} alt="" style={{ width: 48, height: 27, borderRadius: RADIUS.sm, objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ width: 48, height: 27, borderRadius: RADIUS.sm, background: COLORS.border }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textPrimary, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
+                      <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.channelTitle}</div>
+                    </div>
+                    {selectedVideoId === r.videoId && <Check size={16} color={COLORS.primary} />}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p style={{ ...TYPE.styles.caption, color: COLORS.textFaint, marginTop: SPACE.sm, marginBottom: 0 }}>
+              Title, artist name, and cover art fill in automatically. YouTube doesn't let us pull the
+              actual audio track for you (rights reasons) — drop your own audio file below and you're set.
+            </p>
           </div>
-          {ytError && <p style={{ color: COLORS.danger, fontSize: 12, marginTop: SPACE.sm }}>{ytError}</p>}
-          {ytResults.length > 0 && (
-            <div className="ll-fade-in" style={{ marginTop: SPACE.md, display: "flex", flexDirection: "column", gap: 6 }}>
-              {ytResults.map((r) => (
-                <button
-                  key={r.videoId}
-                  onClick={() => applyYouTubeResult(r)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: RADIUS.md, cursor: "pointer",
-                    background: COLORS.hover, border: `1px solid ${COLORS.border}`, textAlign: "left",
-                    transition: `background ${MOTION.fast}, border-color ${MOTION.fast}`,
-                  }}
-                >
-                  {r.coverURL ? (
-                    <img src={r.coverURL} alt="" style={{ width: 48, height: 27, borderRadius: RADIUS.sm, objectFit: "cover" }} />
-                  ) : (
-                    <div style={{ width: 48, height: 27, borderRadius: RADIUS.sm, background: COLORS.border }} />
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textPrimary, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
-                    <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.channelTitle}</div>
-                  </div>
-                </button>
-              ))}
+        ) : (
+          <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"] }}>
+            <label style={labelStyle}>Fill from YouTube (optional)</label>
+            <div style={{ display: "flex", gap: SPACE.sm }}>
+              <input
+                value={ytQuery}
+                onChange={(e) => setYtQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runYouTubeSearch()}
+                placeholder="Search by song or artist name"
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button onClick={runYouTubeSearch} disabled={ytSearching} style={{ ...secondaryBtn, opacity: ytSearching ? 0.6 : 1, whiteSpace: "nowrap" }}>
+                {ytSearching ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
+                {ytSearching ? "Searching…" : "Search"}
+              </button>
             </div>
-          )}
-          <p style={{ ...TYPE.scale.caption, color: COLORS.textFaint, marginTop: SPACE.sm, marginBottom: 0 }}>
-            Pulls the video title, channel name, and thumbnail — this is YouTube video metadata, not
-            verified music data, so double-check the artist field before publishing. Lyrics still need
-            to be your own typed text.
-          </p>
-        </div>
+            {ytError && <p style={{ color: COLORS.danger, fontSize: 12, marginTop: SPACE.sm }}>{ytError}</p>}
+            {ytResults.length > 0 && (
+              <div className="ll-fade-in" style={{ marginTop: SPACE.md, display: "flex", flexDirection: "column", gap: 6 }}>
+                {ytResults.map((r) => (
+                  <button
+                    key={r.videoId}
+                    onClick={() => applyYouTubeResult(r)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: RADIUS.md, cursor: "pointer",
+                      background: COLORS.hover, border: `1px solid ${COLORS.border}`, textAlign: "left",
+                      transition: `background ${MOTION.fast}, border-color ${MOTION.fast}`,
+                    }}
+                  >
+                    {r.coverURL ? (
+                      <img src={r.coverURL} alt="" style={{ width: 48, height: 27, borderRadius: RADIUS.sm, objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ width: 48, height: 27, borderRadius: RADIUS.sm, background: COLORS.border }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textPrimary, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.title}</div>
+                      <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.channelTitle}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p style={{ ...TYPE.styles.caption, color: COLORS.textFaint, marginTop: SPACE.sm, marginBottom: 0 }}>
+              Link a channel from your profile to skip searching next time — you'll pick songs straight
+              from your own uploads instead.
+            </p>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: SPACE.lg, marginBottom: SPACE["2xl"], flexWrap: "wrap" }}>
           <div
@@ -618,7 +775,7 @@ function PreparingScreen({ onDone, onError, uploadAudio, uploadCover, draftTrack
   return (
     <div style={{ minHeight: "100vh", background: COLORS.background, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: SPACE.lg }}>
       <div className="spin" style={{ width: 30, height: 30, border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.primary, borderRadius: "50%" }} />
-      <p style={{ ...TYPE.scale.body, color: COLORS.textMuted }}>{status}</p>
+      <p style={{ ...TYPE.styles.body, color: COLORS.textMuted }}>{status}</p>
     </div>
   );
 }
@@ -730,7 +887,7 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
   const [autoSyncing, setAutoSyncing] = useState(false);
   const [autoSyncError, setAutoSyncError] = useState("");
 
-  const runAutoSync = async () => {
+  const runAutoSync = useCallback(async () => {
     setAutoSyncing(true);
     setAutoSyncError("");
     try {
@@ -738,11 +895,18 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
       setTimestamps(result);
       setActiveIdx(track.lines.length); // mark everything as tagged
     } catch (err) {
-      setAutoSyncError(err.message || "Auto-sync failed — try tapping manually instead.");
+      setAutoSyncError(err.message || "Auto-sync failed — you can still tap it in manually below.");
     } finally {
       setAutoSyncing(false);
     }
-  };
+  }, [track.audioURL, track.lines]);
+
+  // Runs automatically as soon as this screen mounts — the artist just
+  // uploads lyrics + audio and lands here already synced, ready to review.
+  useEffect(() => {
+    runAutoSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const taggedCount = timestamps.filter((t) => t !== null).length;
 
@@ -752,34 +916,43 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
       <div className="ll-fade-in" style={{ width: "100%", maxWidth: 560 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: SPACE.sm }}>
           <span style={badgeStyle("primary")}>Step 2 of 2</span>
-          <span style={{ ...TYPE.scale.caption, color: COLORS.textFaint }}>{taggedCount}/{track.lines.length} lines tagged</span>
+          <span style={{ ...TYPE.styles.caption, color: COLORS.textFaint }}>{taggedCount}/{track.lines.length} lines tagged</span>
         </div>
-        <h1 style={{ ...TYPE.scale.h1, fontSize: 26, color: COLORS.textPrimary, margin: "0 0 4px" }}>Tap to sync</h1>
-        <p style={{ ...TYPE.scale.body, fontSize: 13, color: COLORS.textMuted, margin: `0 0 ${SPACE.lg}px` }}>
-          Press <b style={{ color: COLORS.primary }}>Space</b> when each line starts, or let auto-sync take a first
-          pass and just fix any lines that land wrong.
+        <h1 style={{ ...TYPE.styles.h1, fontSize: 26, color: COLORS.textPrimary, margin: "0 0 4px" }}>
+          {autoSyncing ? "Syncing your lyrics…" : "Review the sync"}
+        </h1>
+        <p style={{ ...TYPE.styles.body, fontSize: 13, color: COLORS.textMuted, margin: `0 0 ${SPACE.lg}px` }}>
+          {autoSyncing
+            ? "Listening to your track and lining up each line — this takes a few seconds."
+            : "We've synced this automatically. Play it back and fix anything that's off — nudge a line, or re-tap it at the right moment."}
         </p>
 
-        <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"], display: "flex", alignItems: "center", gap: SPACE.md, flexWrap: "wrap" }}>
-          <button
-            onClick={runAutoSync}
-            disabled={autoSyncing}
-            style={{ ...primaryBtn, opacity: autoSyncing ? 0.6 : 1 }}
-          >
-            {autoSyncing ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
-            {autoSyncing ? "Analyzing audio…" : "Auto-sync this track"}
-          </button>
-          <span style={{ ...TYPE.scale.caption, color: COLORS.textFaint, flex: 1, minWidth: 180 }}>
-            Best-effort — listens to the track and matches it to your lyrics. Review the result below;
-            nudge or re-tap anything that's off.
-          </span>
-        </div>
+        {autoSyncing && (
+          <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"], display: "flex", alignItems: "center", gap: SPACE.md }}>
+            <Loader2 size={18} className="spin" color={COLORS.primary} />
+            <span style={{ ...TYPE.styles.body, fontSize: 13, color: COLORS.textPrimary }}>Analyzing audio and matching your lyrics…</span>
+          </div>
+        )}
+        {!autoSyncing && (
+          <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"], display: "flex", alignItems: "center", gap: SPACE.md, flexWrap: "wrap" }}>
+            <button
+              onClick={runAutoSync}
+              style={{ ...ghostBtn, whiteSpace: "nowrap" }}
+            >
+              <Sparkles size={15} /> Re-run auto-sync
+            </button>
+            <span style={{ ...TYPE.styles.caption, color: COLORS.textFaint, flex: 1, minWidth: 180 }}>
+              Not happy with the result? Run it again, or press <b style={{ color: COLORS.primary }}>Space</b> on any
+              line while playing to re-tap it by hand.
+            </span>
+          </div>
+        )}
         {autoSyncError && (
           <p style={{ color: COLORS.danger, fontSize: 12, marginTop: -12, marginBottom: SPACE.lg, fontFamily: TYPE.body }}>{autoSyncError}</p>
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.lg }}>
-          <span style={{ ...TYPE.scale.label, color: COLORS.textMuted, marginRight: 4, textTransform: "none" }}>Speed</span>
+          <span style={{ ...TYPE.styles.label, color: COLORS.textMuted, marginRight: 4, textTransform: "none" }}>Speed</span>
           {RATES.map((r) => (
             <button key={r} onClick={() => setRate(r)} style={pillStyle(rate === r)}>
               {r}×
@@ -995,20 +1168,20 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink, display: "flex", flexDirection: "column", alignItems: "center", padding: "clamp(24px, 6vw, 40px) 20px" }}>
+    <div style={{ minHeight: "100vh", background: COLORS.background, display: "flex", flexDirection: "column", alignItems: "center", padding: "clamp(24px, 6vw, 40px) 20px" }}>
       <audio ref={audioRef} src={track.audioURL} />
-      <div style={{ width: "100%", maxWidth: 560, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <button onClick={onBack} style={ghostBtn}>← Back</button>
+      <div className="ll-fade-in" style={{ width: "100%", maxWidth: 560, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: SPACE["2xl"] }}>
+        <button onClick={onBack} style={{ ...ghostBtn, display: "flex", alignItems: "center", gap: 6 }}><ChevronLeft size={15} /> Back</button>
         {onToggleLike && (
           <button
             onClick={() => onToggleLike(track.id)}
             style={{
               ...ghostBtn, display: "flex", alignItems: "center", gap: 6,
-              borderColor: likeInfo?.liked ? COLORS.gold : COLORS.line,
-              color: likeInfo?.liked ? COLORS.gold : COLORS.cream,
+              borderColor: likeInfo?.liked ? COLORS.primary : COLORS.border,
+              color: likeInfo?.liked ? COLORS.primary : COLORS.textPrimary,
             }}
           >
-            <Heart size={14} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likesCount ?? 0}
+            <Heart size={14} fill={likeInfo?.liked ? COLORS.primary : "none"} /> {likeInfo?.likes ?? track.likesCount ?? 0}
           </button>
         )}
       </div>
@@ -1016,18 +1189,18 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
       {track.coverURL && (
         <div
           style={{
-            width: 96, height: 96, borderRadius: 14, marginBottom: 16, backgroundImage: `url(${track.coverURL})`,
-            backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 12px 30px rgba(0,0,0,0.4)",
+            width: 100, height: 100, borderRadius: RADIUS["2xl"], marginBottom: SPACE.lg, backgroundImage: `url(${track.coverURL})`,
+            backgroundSize: "cover", backgroundPosition: "center", boxShadow: ELEVATION.xl,
           }}
         />
       )}
 
-      <div style={{ textAlign: "center", marginBottom: 8 }}>
-        <div style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: "clamp(22px, 5vw, 28px)", color: COLORS.cream }}>{track.title}</div>
+      <div style={{ textAlign: "center", marginBottom: SPACE.sm }}>
+        <div style={{ ...TYPE.styles.h1, fontSize: "clamp(22px, 5vw, 28px)", color: COLORS.textPrimary }}>{track.title}</div>
         <button
           onClick={() => onOpenArtist && onOpenArtist(track.artist)}
           style={{
-            fontFamily: "Inter, sans-serif", fontSize: 14, color: COLORS.gold, marginTop: 4, background: "none",
+            fontFamily: TYPE.body, fontSize: 14, color: COLORS.primary, marginTop: 4, background: "none",
             border: "none", cursor: onOpenArtist ? "pointer" : "default", padding: 0, textDecoration: onOpenArtist ? "underline" : "none",
           }}
         >
@@ -1037,7 +1210,7 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
 
       <div
         style={{
-          width: "100%", maxWidth: 520, height: 360, overflowY: "auto", margin: "24px 0",
+          width: "100%", maxWidth: 520, height: 360, overflowY: "auto", margin: `${SPACE["2xl"]}px 0`,
           maskImage: "linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)",
           WebkitMaskImage: "linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)",
         }}
@@ -1049,15 +1222,15 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
             onClick={() => seekTo(track.timestamps[i])}
             style={{
               padding: "10px 8px", textAlign: "center", cursor: "pointer",
-              fontFamily: "Fraunces, serif", fontWeight: i === activeIdx ? 700 : 400,
+              fontFamily: TYPE.display, fontWeight: i === activeIdx ? 700 : 400,
               fontSize: i === activeIdx ? 22 : 17,
-              transition: "all .25s ease",
+              transition: `all ${MOTION.slow} ease`,
             }}
           >
             {i === activeIdx ? (
               <KaraokeLine text={line} progress={lineProgress} active />
             ) : (
-              <span style={{ color: i < activeIdx ? COLORS.plumDim : COLORS.plum }}>{line}</span>
+              <span style={{ color: i < activeIdx ? COLORS.textFaint : COLORS.textMuted }}>{line}</span>
             )}
           </div>
         ))}
@@ -1070,14 +1243,18 @@ function PlayerScreen({ track, onBack, initialSeek, onOpenArtist, likeInfo, onTo
           max={duration || 0}
           value={current}
           onChange={(e) => seekTo(parseFloat(e.target.value))}
-          style={{ width: "100%", accentColor: COLORS.gold }}
+          style={{ width: "100%", accentColor: COLORS.primary }}
         />
-        <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Inter, sans-serif", fontSize: 11, color: COLORS.plum, marginTop: 2 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontFamily: TYPE.mono, fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
           <span>{fmtTime(current)}</span>
           <span>{fmtTime(duration)}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
-          <button onClick={togglePlay} style={{ ...primaryBtn, padding: 14, borderRadius: "50%", display: "flex" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: SPACE.lg }}>
+          <button
+            onClick={togglePlay}
+            aria-label={playing ? "Pause" : "Play"}
+            style={{ ...primaryBtn, width: 54, height: 54, padding: 0, borderRadius: RADIUS.full, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ELEVATION.md }}
+          >
             {playing ? <Pause size={20} /> : <Play size={20} />}
           </button>
         </div>
@@ -1093,33 +1270,34 @@ function ArtistPage({ artistName, tracks, onBack, onOpenTrack, likes }) {
   const cover = artistTracks.find((t) => t.coverURL)?.coverURL;
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink }}>
-      <div style={{ padding: "20px clamp(16px, 5vw, 28px)", borderBottom: `1px solid ${COLORS.line}` }}>
+    <div style={{ minHeight: "100vh", background: COLORS.background }}>
+      <div style={{ padding: `${SPACE.xl}px clamp(16px, 5vw, 28px)`, borderBottom: `1px solid ${COLORS.border}` }}>
         <button onClick={onBack} style={{ ...ghostBtn, display: "flex", alignItems: "center", gap: 6 }}>
           <ChevronLeft size={15} /> Back
         </button>
       </div>
 
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "clamp(24px, 5vw, 40px) 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 32, flexWrap: "wrap" }}>
+      <div className="ll-fade-in" style={{ maxWidth: 860, margin: "0 auto", padding: "clamp(24px, 5vw, 40px) 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: SPACE["3xl"], flexWrap: "wrap" }}>
           <div
             style={{
               width: 76, height: 76, borderRadius: "50%", flexShrink: 0,
-              background: cover ? `url(${cover}) center/cover` : "rgba(232,185,77,0.12)",
+              background: cover ? `url(${cover}) center/cover` : COLORS.primarySoft,
               display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: ELEVATION.md,
             }}
           >
-            {!cover && <User size={30} color={COLORS.gold} />}
+            {!cover && <User size={30} color={COLORS.primary} />}
           </div>
           <div>
-            <h1 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(24px, 4vw, 32px)", color: COLORS.cream, margin: 0 }}>{artistName}</h1>
-            <div style={{ color: COLORS.plum, fontFamily: "Inter, sans-serif", fontSize: 13, marginTop: 4 }}>
+            <h1 style={{ ...TYPE.styles.h1, fontSize: "clamp(24px, 4vw, 32px)", color: COLORS.textPrimary, margin: 0 }}>{artistName}</h1>
+            <div style={{ color: COLORS.textMuted, fontFamily: TYPE.body, fontSize: 13, marginTop: 4 }}>
               {artistTracks.length} track{artistTracks.length === 1 ? "" : "s"} · {totalLikes} like{totalLikes === 1 ? "" : "s"}
             </div>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: SPACE.lg }}>
           {artistTracks.map((t) => (
             <TrackCard key={t.id} track={t} likeInfo={likes[t.id]} onOpen={() => onOpenTrack(t)} />
           ))}
@@ -1131,26 +1309,35 @@ function ArtistPage({ artistName, tracks, onBack, onOpenTrack, likes }) {
 
 // ---------- Track card ----------
 function TrackCard({ track, likeInfo, onOpen, onOpenArtist, onLike, matchedLine }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <div
       style={{
-        background: COLORS.inkRaised, border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: 18, cursor: "pointer",
-        display: "flex", flexDirection: "column", gap: 12,
+        ...cardStyle,
+        padding: SPACE.lg,
+        cursor: "pointer",
+        display: "flex", flexDirection: "column", gap: SPACE.md,
+        transform: hovered ? "translateY(-2px)" : "none",
+        boxShadow: hovered ? ELEVATION.lg : ELEVATION.sm,
+        borderColor: hovered ? COLORS.borderStrong : COLORS.border,
+        transition: `transform ${MOTION.base}, box-shadow ${MOTION.base}, border-color ${MOTION.base}`,
       }}
       onClick={onOpen}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: SPACE.md }}>
         <div
           style={{
-            width: 44, height: 44, borderRadius: 8, flexShrink: 0,
-            background: track.coverURL ? `url(${track.coverURL}) center/cover` : "rgba(232,185,77,0.12)",
+            width: 44, height: 44, borderRadius: RADIUS.lg, flexShrink: 0,
+            background: track.coverURL ? `url(${track.coverURL}) center/cover` : COLORS.primarySoft,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
-          {!track.coverURL && <Music4 size={18} color={COLORS.gold} />}
+          {!track.coverURL && <Music4 size={18} color={COLORS.primary} />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "Fraunces, serif", fontWeight: 600, fontSize: 16, color: COLORS.cream, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontFamily: TYPE.display, fontWeight: 600, fontSize: 16, color: COLORS.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {track.title}
           </div>
           <button
@@ -1159,7 +1346,7 @@ function TrackCard({ track, likeInfo, onOpen, onOpenArtist, onLike, matchedLine 
               onOpenArtist && onOpenArtist(track.artist);
             }}
             style={{
-              fontFamily: "Inter, sans-serif", fontSize: 13, color: COLORS.plum, background: "none", border: "none",
+              fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted, background: "none", border: "none",
               padding: 0, cursor: onOpenArtist ? "pointer" : "default",
             }}
           >
@@ -1169,20 +1356,13 @@ function TrackCard({ track, likeInfo, onOpen, onOpenArtist, onLike, matchedLine 
       </div>
 
       {matchedLine && (
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: COLORS.gold, lineHeight: 1.4 }}>
+        <div style={{ fontFamily: TYPE.display, fontSize: 13, fontStyle: "italic", color: COLORS.primary, lineHeight: 1.4 }}>
           "…{matchedLine}…"
         </div>
       )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span
-          style={{
-            fontFamily: "Inter, sans-serif", fontSize: 11, color: COLORS.plum, border: `1px solid ${COLORS.line}`,
-            borderRadius: 20, padding: "3px 9px",
-          }}
-        >
-          {track.genre}
-        </span>
+        <span style={badgeStyle("neutral")}>{track.genre}</span>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -1190,11 +1370,11 @@ function TrackCard({ track, likeInfo, onOpen, onOpenArtist, onLike, matchedLine 
           }}
           style={{
             display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
-            cursor: onLike ? "pointer" : "default", color: likeInfo?.liked ? COLORS.gold : COLORS.plum,
-            fontFamily: "Inter, sans-serif", fontSize: 12,
+            cursor: onLike ? "pointer" : "default", color: likeInfo?.liked ? COLORS.primary : COLORS.textMuted,
+            fontFamily: TYPE.body, fontSize: 12,
           }}
         >
-          <Heart size={13} fill={likeInfo?.liked ? COLORS.gold : "none"} /> {likeInfo?.likes ?? track.likesCount ?? 0}
+          <Heart size={13} fill={likeInfo?.liked ? COLORS.primary : "none"} /> {likeInfo?.likes ?? track.likesCount ?? 0}
         </button>
       </div>
     </div>
@@ -1241,54 +1421,39 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
   const usedGenres = ["All", ...GENRES.filter((g) => tracks.some((t) => t.genre === g))];
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px clamp(16px, 4vw, 28px)", borderBottom: `1px solid ${COLORS.line}`, flexWrap: "wrap", gap: 12 }}>
+    <div style={{ minHeight: "100vh", background: COLORS.background }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: `${SPACE.lg}px clamp(16px, 4vw, 28px)`, borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap", gap: SPACE.md, position: "sticky", top: 0, background: COLORS.background, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Mic2 color={COLORS.gold} size={20} />
-          <span style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: COLORS.cream }}>LyricLine</span>
+          <Mic2 color={COLORS.primary} size={20} />
+          <span style={{ ...TYPE.styles.h4, fontFamily: TYPE.display, fontSize: 18, color: COLORS.textPrimary }}>LyricLine</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: SPACE.md, flexWrap: "wrap" }}>
           <button
             onClick={onOpenSitemap}
-            style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6, borderColor: COLORS.gold, color: COLORS.gold }}
+            style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6, borderColor: COLORS.primary, color: COLORS.primary }}
           >
             <Layers size={14} /> Explore the vision
           </button>
-          <button
-            onClick={onOpenDiscover}
-            style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
-          >
+          <button onClick={onOpenDiscover} style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
             <Compass size={14} /> Discover
           </button>
-          <button
-            onClick={onOpenAITools}
-            style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
-          >
+          <button onClick={onOpenAITools} style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
             <Wand2 size={14} /> AI tools
           </button>
           {user.role === "artist" && (
-            <button
-              onClick={onOpenDashboard}
-              style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
-            >
+            <button onClick={onOpenDashboard} style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
               <BarChart3 size={14} /> Dashboard
             </button>
           )}
           {user.role === "artist" && (
-            <button
-              onClick={onOpenVideoStudio}
-              style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
-            >
+            <button onClick={onOpenVideoStudio} style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
               <Video size={14} /> Lyric video
             </button>
           )}
-          <button
-            onClick={onOpenConnections}
-            style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}
-          >
+          <button onClick={onOpenConnections} style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
             <Link2 size={14} /> Connections{connectedCount > 0 ? ` (${connectedCount})` : ""}
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: COLORS.plum, fontFamily: "Inter, sans-serif", fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: COLORS.textMuted, fontFamily: TYPE.body, fontSize: 13 }}>
             <User size={14} /> {user.name} · {user.role}
           </div>
           <button onClick={onLogout} style={{ ...ghostBtn, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
@@ -1298,20 +1463,20 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
       </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "clamp(24px, 5vw, 40px) 20px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-          <h1 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(22px, 4vw, 26px)", color: COLORS.cream, margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
-            <ListMusic size={22} color={COLORS.gold} /> Catalog
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: SPACE.lg, flexWrap: "wrap", gap: SPACE.md }}>
+          <h1 style={{ ...TYPE.styles.h2, color: COLORS.textPrimary, margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
+            <ListMusic size={22} color={COLORS.primary} /> Catalog
           </h1>
           {user.role === "artist" && (
-            <button onClick={onUploadStart} style={{ ...primaryBtn, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+            <button onClick={onUploadStart} style={{ ...primaryBtn }}>
               <Plus size={16} /> Publish a track
             </button>
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: SPACE.sm, marginBottom: SPACE.lg, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
-            <Search size={15} color={COLORS.plum} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+            <Search size={15} color={COLORS.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -1321,9 +1486,10 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
             {query && (
               <button
                 onClick={() => setQuery("")}
+                aria-label="Clear search"
                 style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", display: "flex" }}
               >
-                <X size={14} color={COLORS.plum} />
+                <X size={14} color={COLORS.textMuted} />
               </button>
             )}
           </div>
@@ -1336,11 +1502,12 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
                 key={id}
                 onClick={() => setSort(id)}
                 style={{
-                  padding: "9px 12px", borderRadius: 9, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-                  border: `1px solid ${sort === id ? COLORS.gold : COLORS.line}`,
-                  background: sort === id ? "rgba(232,185,77,0.1)" : "transparent",
-                  color: sort === id ? COLORS.gold : COLORS.plum,
-                  fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 700,
+                  padding: "9px 12px", borderRadius: RADIUS.lg, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                  border: `1px solid ${sort === id ? COLORS.primary : COLORS.border}`,
+                  background: sort === id ? COLORS.primarySoft : "transparent",
+                  color: sort === id ? COLORS.primary : COLORS.textMuted,
+                  fontFamily: TYPE.body, fontSize: 12, fontWeight: 700,
+                  transition: `background ${MOTION.fast}, border-color ${MOTION.fast}`,
                 }}
               >
                 <Icon size={13} /> {label}
@@ -1349,41 +1516,30 @@ function Home({ user, tracks, likes, connections, onLogout, onUploadStart, onOpe
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: SPACE.sm, marginBottom: SPACE["3xl"], flexWrap: "wrap" }}>
           {usedGenres.map((g) => (
-            <button
-              key={g}
-              onClick={() => setGenreFilter(g)}
-              style={{
-                padding: "6px 12px", borderRadius: 20, cursor: "pointer",
-                border: `1px solid ${genreFilter === g ? COLORS.gold : COLORS.line}`,
-                background: genreFilter === g ? "rgba(232,185,77,0.1)" : "transparent",
-                color: genreFilter === g ? COLORS.gold : COLORS.plum,
-                fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 600,
-                display: "flex", alignItems: "center", gap: 4,
-              }}
-            >
+            <button key={g} onClick={() => setGenreFilter(g)} style={pillStyle(genreFilter === g)}>
               {g !== "All" && <Tag size={11} />} {g}
             </button>
           ))}
         </div>
 
         {tracks.length === 0 ? (
-          <div style={{ border: `1px dashed ${COLORS.line}`, borderRadius: 12, padding: 48, textAlign: "center" }}>
-            <Music4 size={28} color={COLORS.plumDim} style={{ marginBottom: 10 }} />
-            <p style={{ color: COLORS.plum, fontFamily: "Inter, sans-serif", fontSize: 14, margin: 0 }}>
+          <div style={{ border: `1px dashed ${COLORS.border}`, borderRadius: RADIUS.xl, padding: SPACE["6xl"], textAlign: "center" }}>
+            <Music4 size={28} color={COLORS.textFaint} style={{ marginBottom: 10 }} />
+            <p style={{ color: COLORS.textMuted, fontFamily: TYPE.body, fontSize: 14, margin: 0 }}>
               Nothing published yet. {user.role === "artist" ? "Publish your first track to get started." : "Check back once an artist publishes a track."}
             </p>
           </div>
         ) : results.length === 0 ? (
-          <div style={{ border: `1px dashed ${COLORS.line}`, borderRadius: 12, padding: 48, textAlign: "center" }}>
-            <Search size={24} color={COLORS.plumDim} style={{ marginBottom: 10 }} />
-            <p style={{ color: COLORS.plum, fontFamily: "Inter, sans-serif", fontSize: 14, margin: 0 }}>
+          <div style={{ border: `1px dashed ${COLORS.border}`, borderRadius: RADIUS.xl, padding: SPACE["6xl"], textAlign: "center" }}>
+            <Search size={24} color={COLORS.textFaint} style={{ marginBottom: 10 }} />
+            <p style={{ color: COLORS.textMuted, fontFamily: TYPE.body, fontSize: 14, margin: 0 }}>
               No matches for "{query}"{genreFilter !== "All" ? ` in ${genreFilter}` : ""}.
             </p>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+          <div className="ll-fade-in" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: SPACE.lg }}>
             {results.map((t) => (
               <TrackCard
                 key={t.id}
@@ -1418,6 +1574,7 @@ export default function App() {
   const [initialSeek, setInitialSeek] = useState(undefined);
   const [connections, setConnections] = useState({ spotify: false, appleMusic: false, youtubeMusic: false });
   const [myLikedIds, setMyLikedIds] = useState({}); // { [trackId]: true } — this user's likes only
+  const [channelPromptDismissed, setChannelPromptDismissed] = useState(false);
 
   // Real session: Firebase persists the login, so refreshing the page keeps you signed in.
   useEffect(() => {
@@ -1507,7 +1664,18 @@ export default function App() {
 
       {!user && entered && <AuthScreen onBack={() => setEntered(false)} />}
 
-      {user && view === "home" && (
+      {user && user.role === "artist" && !user.youtubeChannelId && !channelPromptDismissed && (
+        <LinkChannelScreen
+          uid={user.uid}
+          onLinked={(channelId) => {
+            setUser((u) => ({ ...u, youtubeChannelId: channelId }));
+            setChannelPromptDismissed(true);
+          }}
+          onSkip={() => setChannelPromptDismissed(true)}
+        />
+      )}
+
+      {user && (user.role !== "artist" || user.youtubeChannelId || channelPromptDismissed) && view === "home" && (
         <Home
           user={user}
           tracks={tracks}
@@ -1582,6 +1750,7 @@ export default function App() {
 
       {user && view === "upload" && (
         <UploadScreen
+          user={user}
           onCancel={() => setView("home")}
           onCreated={(t) => {
             setDraftTrack(t);

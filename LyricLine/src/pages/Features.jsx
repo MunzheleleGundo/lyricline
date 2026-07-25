@@ -18,9 +18,9 @@ export default function Features({ onBack }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
         {FEATURES.map((f) => (
           <div key={f.title} style={{ ...cardStyle, padding: 20 }}>
-            <f.icon size={20} color={COLORS.gold} style={{ marginBottom: 12 }} />
-            <div style={{ fontFamily: TYPE.display, fontSize: 16, color: COLORS.cream, marginBottom: 6 }}>{f.title}</div>
-            <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.plum, lineHeight: 1.5 }}>{f.desc}</div>
+            <f.icon size={20} color={COLORS.primary} style={{ marginBottom: 12 }} />
+            <div style={{ fontFamily: TYPE.display, fontSize: 16, color: COLORS.textPrimary, marginBottom: 6 }}>{f.title}</div>
+            <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>{f.desc}</div>
           </div>
         ))}
       </div>

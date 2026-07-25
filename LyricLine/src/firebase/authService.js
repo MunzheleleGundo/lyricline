@@ -9,16 +9,26 @@ import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./config";
 
 // Sign up: creates the auth user, sets displayName, and writes a matching
-// /users/{uid} profile doc (role: "artist" | "listener").
-export async function signUp({ name, email, password, role }) {
+// /users/{uid} profile doc (role: "artist" | "listener"). Artists link their
+// YouTube channel right here at signup — once it's saved, the publish flow
+// reads tracks straight from that channel instead of asking them to search
+// for their own name every time.
+export async function signUp({ name, email, password, role, youtubeChannelId = null }) {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName: name });
   await setDoc(doc(db, "users", cred.user.uid), {
     name,
     role,
+    youtubeChannelId: role === "artist" ? youtubeChannelId : null,
     createdAt: serverTimestamp(),
   });
   return cred.user;
+}
+
+// For artists who signed up before channel-linking existed, or who want to
+// change/add their channel later.
+export async function linkYouTubeChannel(uid, youtubeChannelId) {
+  await setDoc(doc(db, "users", uid), { youtubeChannelId }, { merge: true });
 }
 
 export async function signIn({ email, password }) {
@@ -47,6 +57,7 @@ export function watchAuth(callback) {
       uid: fbUser.uid,
       name: profile?.name || fbUser.displayName || "Unnamed",
       role: profile?.role || "listener",
+      youtubeChannelId: profile?.youtubeChannelId || null,
     });
   });
 }

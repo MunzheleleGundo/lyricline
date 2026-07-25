@@ -1,5 +1,5 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -19,6 +19,40 @@ body,
 
 body {
   font-family: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  background: #FFFFFF;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(255, 14, 131, 0.16);
+  color: #1A1523;
+}
+
+/* Consistent, visible focus ring for keyboard users on every
+   interactive element, without adding a ring on mouse click. */
+:focus-visible {
+  outline: 2px solid #FF0E83;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #E2DEE9;
+  border-radius: 999px;
+  border: 2px solid #FFFFFF;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D2CCDE;
 }
 
 .spin {
@@ -27,4 +61,27 @@ body {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes llShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes llFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ll-fade-in {
+  animation: llFadeIn 220ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Respect users who've asked the OS for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

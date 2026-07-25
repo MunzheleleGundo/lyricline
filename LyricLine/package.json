@@ -10,10 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "firebase": "^11.2.0",
     "lucide-react": "^0.470.0",
-    "firebase": "^11.2.0"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

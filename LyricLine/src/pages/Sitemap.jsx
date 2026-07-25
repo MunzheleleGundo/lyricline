@@ -41,7 +41,7 @@ export default function Sitemap({ onBack, onNavigate }) {
     <PageShell onBack={onBack} eyebrow="Explore" title="Where this could go" subtitle="Every section here is a UI sketch — tap through to see the shape of the fuller product.">
       {sections.map((s) => (
         <div key={s.label} style={{ marginBottom: 28 }}>
-          <div style={{ fontFamily: TYPE.body, fontSize: 12, fontWeight: 700, color: COLORS.plum, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+          <div style={{ fontFamily: TYPE.body, fontSize: 12, fontWeight: 700, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
             {s.label}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
@@ -51,9 +51,9 @@ export default function Sitemap({ onBack, onNavigate }) {
                 onClick={() => onNavigate(it.id)}
                 style={{ ...cardStyle, padding: 16, textAlign: "left", cursor: "pointer" }}
               >
-                <it.icon size={18} color={COLORS.gold} style={{ marginBottom: 10 }} />
-                <div style={{ fontFamily: TYPE.body, fontWeight: 700, fontSize: 14, color: COLORS.cream }}>{it.name}</div>
-                <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.plum, marginTop: 4, lineHeight: 1.4 }}>{it.desc}</div>
+                <it.icon size={18} color={COLORS.primary} style={{ marginBottom: 10 }} />
+                <div style={{ fontFamily: TYPE.body, fontWeight: 700, fontSize: 14, color: COLORS.textPrimary }}>{it.name}</div>
+                <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, marginTop: 4, lineHeight: 1.4 }}>{it.desc}</div>
               </button>
             ))}
           </div>

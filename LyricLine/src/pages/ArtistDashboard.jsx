@@ -32,21 +32,21 @@ export default function ArtistDashboard({ onBack, tracks, user }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 32 }}>
         {STATS.map((s) => (
           <div key={s.label} style={{ ...cardStyle, padding: 16 }}>
-            <s.icon size={16} color={COLORS.gold} style={{ marginBottom: 10 }} />
-            <div style={{ fontFamily: TYPE.display, fontSize: 22, color: COLORS.cream }}>{s.value}</div>
-            <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.plum, marginTop: 2 }}>{s.label}</div>
+            <s.icon size={16} color={COLORS.primary} style={{ marginBottom: 10 }} />
+            <div style={{ fontFamily: TYPE.display, fontSize: 22, color: COLORS.textPrimary }}>{s.value}</div>
+            <div style={{ fontFamily: TYPE.body, fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ fontFamily: TYPE.display, fontSize: 18, color: COLORS.cream, marginBottom: 12 }}>
+      <div style={{ fontFamily: TYPE.display, fontSize: 18, color: COLORS.textPrimary, marginBottom: 12 }}>
         Top tracks
       </div>
 
       {trackCount === 0 ? (
         <div style={{ ...cardStyle, padding: 32, textAlign: "center" }}>
-          <Music4 size={22} color={COLORS.plumDim} style={{ marginBottom: 10 }} />
-          <p style={{ color: COLORS.plum, fontFamily: TYPE.body, fontSize: 13, margin: 0 }}>
+          <Music4 size={22} color={COLORS.textFaint} style={{ marginBottom: 10 }} />
+          <p style={{ color: COLORS.textMuted, fontFamily: TYPE.body, fontSize: 13, margin: 0 }}>
             Publish a track to start seeing real analytics here.
           </p>
         </div>
@@ -57,11 +57,11 @@ export default function ArtistDashboard({ onBack, tracks, user }) {
               key={t.id}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px",
-                borderBottom: i < topTracks.length - 1 ? `1px solid ${COLORS.line}` : "none",
+                borderBottom: i < topTracks.length - 1 ? `1px solid ${COLORS.border}` : "none",
               }}
             >
-              <span style={{ fontFamily: TYPE.body, fontSize: 14, color: COLORS.cream }}>{t.title}</span>
-              <span style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.plum, display: "flex", gap: 12 }}>
+              <span style={{ fontFamily: TYPE.body, fontSize: 14, color: COLORS.textPrimary }}>{t.title}</span>
+              <span style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted, display: "flex", gap: 12 }}>
                 <span>{(t.viewsCount || 0).toLocaleString()} views</span>
                 <span>{(t.likesCount || 0).toLocaleString()} likes</span>
               </span>

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import {
   ChevronLeft, Sparkles, Languages, FileText, Smile, Tags, Wand2, PenLine, AudioLines,
 } from "lucide-react";
-import { COLORS, TYPE, cardStyle, ghostBtn, primaryBtn } from "../theme/tokens";
+import { COLORS, TYPE, SPACE, RADIUS, ELEVATION, MOTION, cardStyle, ghostBtn, primaryBtn, badgeStyle, inputStyle } from "../theme/tokens";
 
 const TOOLS = [
   { id: "generator", icon: Wand2, name: "Lyric Generator", blurb: "Draft starting lines from a mood, genre, or theme." },
@@ -17,33 +17,22 @@ const TOOLS = [
 
 function ToolPreview({ tool }) {
   return (
-    <div style={{ ...cardStyle, padding: 20, marginTop: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <tool.icon size={18} color={COLORS.gold} />
-        <span style={{ fontFamily: TYPE.display, fontSize: 17, color: COLORS.cream }}>{tool.name}</span>
-        <span
-          style={{
-            marginLeft: "auto", fontFamily: TYPE.body, fontSize: 11, color: COLORS.plum,
-            border: `1px solid ${COLORS.line}`, borderRadius: 20, padding: "3px 9px",
-          }}
-        >
-          Preview — not wired up
-        </span>
+    <div className="ll-fade-in" style={{ ...cardStyle, padding: SPACE.xl, marginTop: SPACE.lg }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: SPACE.lg }}>
+        <tool.icon size={18} color={COLORS.primary} />
+        <span style={{ fontFamily: TYPE.display, fontSize: 17, color: COLORS.textPrimary }}>{tool.name}</span>
+        <span style={{ ...badgeStyle("neutral"), marginLeft: "auto" }}>Preview — not wired up</span>
       </div>
       <textarea
         placeholder="Paste a lyric or describe what you're going for..."
         rows={4}
         disabled
-        style={{
-          width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9,
-          border: `1px solid ${COLORS.line}`, background: COLORS.ink, color: COLORS.plum,
-          fontFamily: TYPE.body, fontSize: 13, resize: "none", marginBottom: 12,
-        }}
+        style={{ ...inputStyle, color: COLORS.textMuted, resize: "none", marginBottom: SPACE.md }}
       />
       <button disabled style={{ ...primaryBtn, opacity: 0.5, cursor: "not-allowed" }}>
         Run {tool.name}
       </button>
-      <p style={{ fontSize: 12, color: COLORS.plumDim, marginTop: 10, lineHeight: 1.6 }}>
+      <p style={{ fontSize: 12, color: COLORS.textFaint, marginTop: SPACE.md, lineHeight: 1.6 }}>
         This is an interface mockup only. No model call happens here yet — wiring this up would
         need a real AI backend, which is out of scope for this prototype.
       </p>
@@ -56,35 +45,37 @@ export default function AITools({ onBack }) {
   const activeTool = TOOLS.find((t) => t.id === active);
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.ink, padding: "clamp(24px, 5vw, 40px) 20px" }}>
-      <div style={{ maxWidth: 720, margin: "0 auto" }}>
-        <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 24, display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ minHeight: "100vh", background: COLORS.background, padding: "clamp(24px, 5vw, 40px) 20px" }}>
+      <div className="ll-fade-in" style={{ maxWidth: 720, margin: "0 auto" }}>
+        <button onClick={onBack} style={{ ...ghostBtn, marginBottom: SPACE["2xl"], display: "flex", alignItems: "center", gap: 6 }}>
           <ChevronLeft size={15} /> Back
         </button>
 
-        <h1 style={{ fontFamily: TYPE.display, fontSize: TYPE.scale.h1, color: COLORS.cream, margin: "0 0 6px" }}>
+        <h1 style={{ fontFamily: TYPE.display, fontSize: TYPE.scale.h1, color: COLORS.textPrimary, margin: "0 0 6px" }}>
           AI tools
         </h1>
-        <p style={{ color: COLORS.plum, fontFamily: TYPE.body, fontSize: 14, margin: "0 0 28px" }}>
+        <p style={{ color: COLORS.textMuted, fontFamily: TYPE.body, fontSize: 14, margin: `0 0 ${SPACE["3xl"]}px` }}>
           Interface concepts for where AI could plug into LyricLine. All UI, no functionality.
         </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: SPACE.sm }}>
           {TOOLS.map((t) => (
             <button
               key={t.id}
               onClick={() => setActive(t.id)}
               style={{
-                textAlign: "left", padding: 14, borderRadius: 10, cursor: "pointer",
-                border: `1px solid ${active === t.id ? COLORS.gold : COLORS.line}`,
-                background: active === t.id ? "rgba(232,185,77,0.08)" : COLORS.inkRaised,
+                textAlign: "left", padding: SPACE.md, borderRadius: RADIUS.xl, cursor: "pointer",
+                border: `1px solid ${active === t.id ? COLORS.primary : COLORS.border}`,
+                background: active === t.id ? COLORS.primarySoft : COLORS.surfaceRaised,
+                boxShadow: active === t.id ? ELEVATION.sm : "none",
+                transition: `background ${MOTION.fast}, border-color ${MOTION.fast}`,
               }}
             >
-              <t.icon size={16} color={active === t.id ? COLORS.gold : COLORS.plum} />
-              <div style={{ fontFamily: TYPE.body, fontWeight: 700, fontSize: 13, color: COLORS.cream, marginTop: 8 }}>
+              <t.icon size={16} color={active === t.id ? COLORS.primary : COLORS.textMuted} />
+              <div style={{ fontFamily: TYPE.body, fontWeight: 700, fontSize: 13, color: COLORS.textPrimary, marginTop: SPACE.sm }}>
                 {t.name}
               </div>
-              <div style={{ fontFamily: TYPE.body, fontSize: 11, color: COLORS.plum, marginTop: 4, lineHeight: 1.4 }}>
+              <div style={{ fontFamily: TYPE.body, fontSize: 11, color: COLORS.textMuted, marginTop: 4, lineHeight: 1.4 }}>
                 {t.blurb}
               </div>
             </button>

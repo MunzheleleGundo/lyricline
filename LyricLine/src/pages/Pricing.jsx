@@ -14,19 +14,19 @@ export default function Pricing({ onBack }) {
     <PageShell onBack={onBack} eyebrow="Pricing" title="Simple pricing, wherever you are" subtitle="Illustrative tiers — no billing is wired up in this prototype.">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
         {PLANS.map((p) => (
-          <div key={p.name} style={{ ...cardStyle, padding: 24, border: `1px solid ${p.highlighted ? COLORS.gold : COLORS.line}`, position: "relative" }}>
+          <div key={p.name} style={{ ...cardStyle, padding: 24, border: `1px solid ${p.highlighted ? COLORS.primary : COLORS.border}`, position: "relative" }}>
             {p.highlighted && (
-              <span style={{ position: "absolute", top: -10, left: 20, background: COLORS.gold, color: "#1C1608", fontFamily: TYPE.body, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20 }}>
+              <span style={{ position: "absolute", top: -10, left: 20, background: COLORS.primary, color: "#1C1608", fontFamily: TYPE.body, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20 }}>
                 Most popular
               </span>
             )}
-            <div style={{ fontFamily: TYPE.display, fontSize: 20, color: COLORS.cream, marginBottom: 4 }}>{p.name}</div>
-            <div style={{ fontFamily: TYPE.display, fontSize: 28, color: COLORS.gold, fontWeight: 700, marginBottom: 8 }}>{p.price}</div>
-            <p style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.plum, marginBottom: 18, lineHeight: 1.5 }}>{p.tagline}</p>
+            <div style={{ fontFamily: TYPE.display, fontSize: 20, color: COLORS.textPrimary, marginBottom: 4 }}>{p.name}</div>
+            <div style={{ fontFamily: TYPE.display, fontSize: 28, color: COLORS.primary, fontWeight: 700, marginBottom: 8 }}>{p.price}</div>
+            <p style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted, marginBottom: 18, lineHeight: 1.5 }}>{p.tagline}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
               {p.features.map((f) => (
-                <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: TYPE.body, fontSize: 13, color: COLORS.cream }}>
-                  <Check size={14} color={COLORS.gold} /> {f}
+                <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: TYPE.body, fontSize: 13, color: COLORS.textPrimary }}>
+                  <Check size={14} color={COLORS.primary} /> {f}
                 </div>
               ))}
             </div>

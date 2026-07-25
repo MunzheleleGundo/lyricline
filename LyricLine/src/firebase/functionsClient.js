@@ -25,6 +25,19 @@ export async function searchYouTube(query) {
   return data.results || [];
 }
 
+// Lists videos from an artist's own linked channel — used on the publish
+// screen once a channel is linked, so there's nothing to search for.
+export async function listChannelVideos(channelId) {
+  const data = await authedFetch(`youtubeChannelVideos?channelId=${encodeURIComponent(channelId)}`);
+  return data.results || [];
+}
+
+// Resolves whatever an artist pastes at signup (a channel URL, an @handle,
+// or a raw channel ID) into a confirmed channelId + channel title.
+export async function resolveYouTubeChannel(input) {
+  return authedFetch(`youtubeResolveChannel?input=${encodeURIComponent(input)}`);
+}
+
 export async function autoAlignLyrics(audioURL, lines) {
   const data = await authedFetch("alignLyrics", {
     method: "POST",

@@ -63,6 +63,88 @@ exports.youtubeSearch = onRequest(
   })
 );
 
+// ---------- List videos from the artist's own linked channel ----------
+// Resolves the channel's "uploads" playlist once, then lists videos from it.
+// Used instead of youtubeSearch once an artist has linked a channel, so
+// they pick from their own catalog instead of re-searching their name
+// every time they publish a track.
+exports.youtubeChannelVideos = onRequest(
+  { secrets: [YOUTUBE_API_KEY], cors: true },
+  withCors(async (req, res) => {
+    try {
+      await requireAuth(req);
+      const channelId = (req.query.channelId || "").toString().trim();
+      if (!channelId) return res.status(400).json({ error: "Missing ?channelId=." });
+
+      const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${encodeURIComponent(channelId)}&key=${YOUTUBE_API_KEY.value()}`;
+      const channelResp = await fetch(channelUrl);
+      if (!channelResp.ok) throw new Error(`Channel lookup failed: ${channelResp.status}`);
+      const channelData = await channelResp.json();
+      const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+      if (!uploadsPlaylistId) return res.status(404).json({ error: "Couldn't find that channel — double check the channel ID." });
+
+      const itemsUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=24&playlistId=${encodeURIComponent(uploadsPlaylistId)}&key=${YOUTUBE_API_KEY.value()}`;
+      const itemsResp = await fetch(itemsUrl);
+      if (!itemsResp.ok) throw new Error(`Channel videos lookup failed: ${itemsResp.status}`);
+      const itemsData = await itemsResp.json();
+
+      const results = (itemsData.items || [])
+        .filter((item) => item.snippet?.resourceId?.videoId)
+        .map((item) => ({
+          videoId: item.snippet.resourceId.videoId,
+          title: item.snippet.title,
+          channelTitle: item.snippet.channelTitle,
+          coverURL: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || null,
+          publishedAt: item.snippet.publishedAt,
+        }));
+
+      res.json({ results });
+    } catch (err) {
+      logger.error("youtubeChannelVideos failed", err);
+      res.status(err.status || 500).json({ error: err.message || "Couldn't load channel videos." });
+    }
+  })
+);
+
+// ---------- Resolve a pasted channel URL/handle to a channel ID ----------
+// Accepts a raw channel ID (UC...), a /channel/UC... URL, or an @handle
+// URL/handle, and returns the canonical channelId + channel title so the
+// signup form can confirm the right channel before saving it.
+exports.youtubeResolveChannel = onRequest(
+  { secrets: [YOUTUBE_API_KEY], cors: true },
+  withCors(async (req, res) => {
+    try {
+      await requireAuth(req);
+      const raw = (req.query.input || "").toString().trim();
+      if (!raw) return res.status(400).json({ error: "Missing ?input=." });
+
+      let channelId = null;
+      const ucMatch = raw.match(/UC[a-zA-Z0-9_-]{20,}/);
+      if (ucMatch) {
+        channelId = ucMatch[0];
+      } else {
+        const handleMatch = raw.match(/@[\w.-]+/);
+        const handle = handleMatch ? handleMatch[0] : (raw.startsWith("@") ? raw : `@${raw.replace(/^https?:\/\/\S+\//, "")}`);
+        const handleUrl = `https://www.googleapis.com/youtube/v3/channels?part=id,snippet&forHandle=${encodeURIComponent(handle)}&key=${YOUTUBE_API_KEY.value()}`;
+        const handleResp = await fetch(handleUrl);
+        const handleData = await handleResp.json();
+        channelId = handleData.items?.[0]?.id || null;
+      }
+      if (!channelId) return res.status(404).json({ error: "Couldn't find a channel for that link/handle." });
+
+      const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${encodeURIComponent(channelId)}&key=${YOUTUBE_API_KEY.value()}`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      const channel = data.items?.[0];
+      if (!channel) return res.status(404).json({ error: "Couldn't find a channel with that ID." });
+
+      res.json({ channelId, title: channel.snippet.title, thumbnailURL: channel.snippet.thumbnails?.default?.url || null });
+    } catch (err) {
+      logger.error("youtubeResolveChannel failed", err);
+      res.status(err.status || 500).json({ error: err.message || "Couldn't resolve that channel." });
+    }
+  })
+);
 
 // ---------- Lyric auto-align (AssemblyAI word timestamps + text matching) ----------
 // Given a public audio URL and the artist's own typed lyric lines, this

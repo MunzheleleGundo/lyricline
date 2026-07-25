@@ -34,13 +34,13 @@ export default function SongMeaning({ onBack }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {SAMPLE_TRACK.lines.map((l, i) => (
             <div key={i} style={{ ...cardStyle, padding: 16 }}>
-              <div style={{ fontFamily: TYPE.display, fontSize: 16, color: COLORS.cream, marginBottom: 8 }}>{l.text}</div>
-              <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.plum, lineHeight: 1.6, borderLeft: `2px solid ${COLORS.gold}`, paddingLeft: 10 }}>
+              <div style={{ fontFamily: TYPE.display, fontSize: 16, color: COLORS.textPrimary, marginBottom: 8 }}>{l.text}</div>
+              <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6, borderLeft: `2px solid ${COLORS.primary}`, paddingLeft: 10 }}>
                 {l.note}
               </div>
             </div>
           ))}
-          <p style={{ fontSize: 12, color: COLORS.plumDim, marginTop: 4 }}>
+          <p style={{ fontSize: 12, color: COLORS.textFaint, marginTop: 4 }}>
             Annotations shown here are illustrative — in the real product these would come from the
             artist or community contributors, not be auto-generated.
           </p>
@@ -49,7 +49,7 @@ export default function SongMeaning({ onBack }) {
 
       {tab === "translation" && (
         <div style={{ ...cardStyle, padding: 20 }}>
-          <p style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.plum, lineHeight: 1.6 }}>
+          <p style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
             A translation view would show the original lyric alongside a line-by-line translation,
             language-switchable. Not implemented in this prototype.
           </p>
@@ -58,7 +58,7 @@ export default function SongMeaning({ onBack }) {
 
       {tab === "credits" && (
         <div style={{ ...cardStyle, padding: 20 }}>
-          <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.cream, lineHeight: 2 }}>
+          <div style={{ fontFamily: TYPE.body, fontSize: 13, color: COLORS.textPrimary, lineHeight: 2 }}>
             <div>Written by — Rosa Winters</div>
             <div>Produced by — sample data</div>
             <div>Published — self-published via LyricLine</div>
