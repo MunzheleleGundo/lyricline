@@ -3,6 +3,7 @@ import {
   Mic2, Music4, Upload, Play, Pause, Plus, LogOut, User, Clock, Check,
   ListMusic, Link2, Unlink, Search, Heart, Image as ImageIcon, ChevronLeft,
   TrendingUp, Sparkles, Tag, ArrowRight, X, Compass, Wand2, Layers, BarChart3, Video, Loader2, Youtube, SkipBack, SkipForward,
+  AlertTriangle,
 } from "lucide-react";
 import {
   FONT_IMPORT, COLORS, TYPE, SPACE, RADIUS, ELEVATION, MOTION, GRADIENT_BRAND,
@@ -21,7 +22,7 @@ import LyricVideoStudio from "./pages/LyricVideoStudio";
 import { signUp, signIn, signOut, watchAuth, friendlyAuthError, linkYouTubeChannel } from "./firebase/authService";
 import { createTrack, watchTracks, toggleTrackLike, getMyLikeStatus, recordTrackView } from "./firebase/tracksService";
 import { uploadFile } from "./firebase/storageService";
-import { searchYouTube, listChannelVideos, resolveYouTubeChannel, autoAlignLyrics } from "./firebase/functionsClient";
+import { searchYouTube, listChannelVideos, resolveYouTubeChannel, autoAlignLyrics, autoWriteLyrics } from "./firebase/functionsClient";
 
 /*
   LyricLine — a self-publish synced-lyrics platform
@@ -534,7 +535,7 @@ function UploadScreen({ user, onCreated, onCancel }) {
     setCoverFile(f);
   };
 
-  const canContinue = title.trim() && artist.trim() && lyricsText.trim() && audioURL;
+  const canContinue = title.trim() && artist.trim() && audioURL;
 
   return (
     <div style={{ minHeight: "100vh", background: COLORS.background, padding: "clamp(24px, 6vw, 48px) 20px" }}>
@@ -716,8 +717,12 @@ function UploadScreen({ user, onCreated, onCancel }) {
           onChange={(e) => setLyricsText(e.target.value)}
           rows={10}
           placeholder={"City lights blur through the glass\nI'm holding on to what I had\n..."}
-          style={{ ...inputStyle, resize: "vertical", fontFamily: TYPE.display, lineHeight: 1.6, marginBottom: SPACE["3xl"] }}
+          style={{ ...inputStyle, resize: "vertical", fontFamily: TYPE.display, lineHeight: 1.6, marginBottom: SPACE.sm }}
         />
+        <p style={{ ...TYPE.styles.caption, color: COLORS.textFaint, marginTop: 0, marginBottom: SPACE["3xl"] }}>
+          Optional — leave this blank and you can auto-write a draft from the audio on the next screen
+          (works best for English; you'll still review and fix it before publishing).
+        </p>
 
         <div style={{ display: "flex", gap: SPACE.md, flexWrap: "wrap" }}>
           <button onClick={onCancel} style={ghostBtn}>Cancel</button>
@@ -947,10 +952,63 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [timestamps, setTimestamps] = useState(Array(track.lines.length).fill(null));
+
+  // The lyric lines being synced are local, editable state — not just
+  // `track.lines` directly — so a track with no typed lyrics yet can be
+  // filled in by auto-write, and any line (typed or auto-written) can
+  // still be hand-corrected before publishing.
+  const [lines, setLines] = useState(track.lines || []);
+  const [timestamps, setTimestamps] = useState(Array((track.lines || []).length).fill(null));
   const [activeIdx, setActiveIdx] = useState(0);
   const [rate, setRate] = useState(1);
   const [flash, setFlash] = useState(false);
+
+  const [writingLyrics, setWritingLyrics] = useState(false);
+  const [writeError, setWriteError] = useState("");
+  const [writeWarning, setWriteWarning] = useState("");
+  const [manualText, setManualText] = useState("");
+  const hasAutoWritten = useRef(false);
+
+  const runAutoWrite = useCallback(async () => {
+    setWritingLyrics(true);
+    setWriteError("");
+    setWriteWarning("");
+    try {
+      const { lines: written, warning } = await autoWriteLyrics(track.audioURL);
+      setLines(written);
+      setTimestamps(Array(written.length).fill(null));
+      setActiveIdx(0);
+      hasAutoWritten.current = true;
+      if (warning) setWriteWarning(warning);
+    } catch (err) {
+      setWriteError(err.message || "Couldn't auto-write lyrics — you can type them in below instead.");
+    } finally {
+      setWritingLyrics(false);
+    }
+  }, [track.audioURL]);
+
+  // Edit a single auto-written (or typed) line's text before syncing.
+  // Editing text after it's been timestamped just clears that one
+  // timestamp — the text moved, so the old timing can't be trusted.
+  const editLine = useCallback((idx, text) => {
+    setLines((prev) => {
+      const next = [...prev];
+      next[idx] = text;
+      return next;
+    });
+    setTimestamps((prev) => {
+      if (prev[idx] === null) return prev;
+      const next = [...prev];
+      next[idx] = null;
+      return next;
+    });
+  }, []);
+
+  const removeLine = useCallback((idx) => {
+    setLines((prev) => prev.filter((_, i) => i !== idx));
+    setTimestamps((prev) => prev.filter((_, i) => i !== idx));
+    setActiveIdx((i) => Math.min(i, Math.max(0, lines.length - 1)));
+  }, [lines.length]);
 
   useEffect(() => {
     const a = audioRef.current;
@@ -1002,15 +1060,15 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
   };
 
   const tapLine = useCallback(() => {
-    if (activeIdx >= track.lines.length) return;
+    if (activeIdx >= lines.length) return;
     setTimestamps((prev) => {
       const next = [...prev];
       next[activeIdx] = audioRef.current?.currentTime ?? 0;
       return next;
     });
-    setActiveIdx((i) => Math.min(i + 1, track.lines.length));
+    setActiveIdx((i) => Math.min(i + 1, lines.length));
     pulse();
-  }, [activeIdx, track.lines.length]);
+  }, [activeIdx, lines.length]);
 
   // Undo the most recent tap — much easier than reaching for the mouse to
   // fix a single mistimed line mid-flow.
@@ -1062,31 +1120,48 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [tapLine, undoLastTap]);
 
-  const allTagged = timestamps.every((t) => t !== null);
+  const allTagged = lines.length > 0 && timestamps.every((t) => t !== null);
   const RATES = [0.5, 0.75, 1];
   const [autoSyncing, setAutoSyncing] = useState(false);
   const [autoSyncError, setAutoSyncError] = useState("");
 
+  const [autoSyncWarning, setAutoSyncWarning] = useState("");
+
   const runAutoSync = useCallback(async () => {
+    if (!lines.length) return;
     setAutoSyncing(true);
     setAutoSyncError("");
+    setAutoSyncWarning("");
     try {
-      const result = await autoAlignLyrics(track.audioURL, track.lines);
+      const { timestamps: result, warning } = await autoAlignLyrics(track.audioURL, lines);
       setTimestamps(result);
-      setActiveIdx(track.lines.length); // mark everything as tagged
+      setActiveIdx(lines.length); // mark everything as tagged
+      if (warning) setAutoSyncWarning(warning);
     } catch (err) {
       setAutoSyncError(err.message || "Auto-sync failed — you can still tap it in manually below.");
     } finally {
       setAutoSyncing(false);
     }
-  }, [track.audioURL, track.lines]);
+  }, [track.audioURL, lines]);
 
-  // Runs automatically as soon as this screen mounts — the artist just
-  // uploads lyrics + audio and lands here already synced, ready to review.
+  // Runs automatically as soon as this screen mounts, but only if lyrics
+  // already exist (typed lyrics case). If there are none yet, the person
+  // sees the auto-write step first — auto-sync runs after that, once
+  // `lines` is actually populated (see the effect below).
   useEffect(() => {
-    runAutoSync();
+    if (lines.length) runAutoSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Once auto-write finishes populating `lines` for the first time, chain
+  // straight into auto-sync — no extra click needed.
+  useEffect(() => {
+    if (hasAutoWritten.current && lines.length) {
+      hasAutoWritten.current = false;
+      runAutoSync();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines]);
 
   const taggedCount = timestamps.filter((t) => t !== null).length;
 
@@ -1096,17 +1171,58 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
       <div className="ll-fade-in" style={{ width: "100%", maxWidth: 560 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: SPACE.sm }}>
           <span style={badgeStyle("primary")}>Step 2 of 2</span>
-          <span style={{ ...TYPE.styles.caption, color: COLORS.textFaint }}>{taggedCount}/{track.lines.length} lines tagged</span>
+          <span style={{ ...TYPE.styles.caption, color: COLORS.textFaint }}>{taggedCount}/{lines.length} lines tagged</span>
         </div>
         <h1 style={{ ...TYPE.styles.h1, fontSize: 26, color: COLORS.textPrimary, margin: "0 0 4px" }}>
-          {autoSyncing ? "Syncing your lyrics…" : "Review the sync"}
+          {!lines.length ? "Get your lyrics down" : autoSyncing ? "Syncing your lyrics…" : "Review the sync"}
         </h1>
         <p style={{ ...TYPE.styles.body, fontSize: 13, color: COLORS.textMuted, margin: `0 0 ${SPACE.lg}px` }}>
-          {autoSyncing
+          {!lines.length
+            ? "No lyrics yet — write a draft from the audio (works best for English), or type them in below."
+            : autoSyncing
             ? "Listening to your track and lining up each line — this takes a few seconds."
             : "We've synced this automatically. Play it back and fix anything that's off — nudge a line, or re-tap it at the right moment."}
         </p>
 
+        {!lines.length && (
+          <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"] }}>
+            <button
+              onClick={runAutoWrite}
+              disabled={writingLyrics}
+              style={{ ...primaryBtn, width: "100%", justifyContent: "center", opacity: writingLyrics ? 0.7 : 1 }}
+            >
+              {writingLyrics ? <Loader2 size={15} className="spin" /> : <Wand2 size={15} />}
+              {writingLyrics ? "Listening and writing a draft…" : "Auto-write lyrics from audio"}
+            </button>
+            {writeError && <p style={{ color: COLORS.danger, fontSize: 12, marginTop: SPACE.sm, marginBottom: 0, fontFamily: TYPE.body }}>{writeError}</p>}
+            <p style={{ ...TYPE.styles.caption, color: COLORS.textFaint, marginTop: SPACE.sm, marginBottom: SPACE.md }}>
+              Or type/paste them yourself, one line per row:
+            </p>
+            <textarea
+              value={manualText}
+              onChange={(e) => setManualText(e.target.value)}
+              rows={8}
+              placeholder={"City lights blur through the glass\nI'm holding on to what I had\n..."}
+              style={{ ...inputStyle, resize: "vertical", fontFamily: TYPE.display, lineHeight: 1.6, marginBottom: SPACE.sm }}
+            />
+            <button
+              onClick={() => setLines(manualText.split("\n").map((t) => t.trim()).filter(Boolean))}
+              disabled={!manualText.trim()}
+              style={{ ...ghostBtn, opacity: manualText.trim() ? 1 : 0.4 }}
+            >
+              Use these lyrics
+            </button>
+          </div>
+        )}
+        {writeWarning && (
+          <div style={{ ...cardStyle, borderColor: COLORS.warning, background: COLORS.warningSoft, padding: SPACE.md, marginBottom: SPACE.lg, display: "flex", gap: SPACE.sm, alignItems: "flex-start" }}>
+            <AlertTriangle size={15} color={COLORS.warning} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span style={{ ...TYPE.styles.caption, color: COLORS.textPrimary }}>{writeWarning}</span>
+          </div>
+        )}
+
+        {lines.length > 0 && (
+          <>
         {autoSyncing && (
           <div style={{ ...cardStyle, padding: SPACE.lg, marginBottom: SPACE["2xl"], display: "flex", alignItems: "center", gap: SPACE.md }}>
             <Loader2 size={18} className="spin" color={COLORS.primary} />
@@ -1130,10 +1246,16 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
         {autoSyncError && (
           <p style={{ color: COLORS.danger, fontSize: 12, marginTop: -12, marginBottom: SPACE.lg, fontFamily: TYPE.body }}>{autoSyncError}</p>
         )}
+        {autoSyncWarning && (
+          <div style={{ ...cardStyle, borderColor: COLORS.warning, background: COLORS.warningSoft, padding: SPACE.md, marginTop: -12, marginBottom: SPACE.lg, display: "flex", gap: SPACE.sm, alignItems: "flex-start" }}>
+            <AlertTriangle size={15} color={COLORS.warning} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span style={{ ...TYPE.styles.caption, color: COLORS.textPrimary }}>{autoSyncWarning}</span>
+          </div>
+        )}
 
         {!autoSyncing && (
           <LyricVideoPreview
-            track={track}
+            track={{ ...track, lines }}
             timestamps={timestamps}
             current={current}
             duration={duration}
@@ -1168,16 +1290,16 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
           <div style={{ fontFamily: TYPE.mono, color: COLORS.textMuted, fontSize: 13 }}>{fmtTime(current)}</div>
           <button
             onClick={tapLine}
-            disabled={!playing || activeIdx >= track.lines.length}
+            disabled={!playing || activeIdx >= lines.length}
             style={{
               ...ghostBtn, flex: 1, minWidth: 160, justifyContent: "center",
-              opacity: !playing || activeIdx >= track.lines.length ? 0.4 : 1,
+              opacity: !playing || activeIdx >= lines.length ? 0.4 : 1,
               transform: flash ? "scale(0.97)" : "scale(1)",
               borderColor: flash ? COLORS.primary : COLORS.border,
               transition: `transform ${MOTION.fast}, border-color ${MOTION.fast}`,
             }}
           >
-            Tap line {Math.min(activeIdx + 1, track.lines.length)} of {track.lines.length}
+            Tap line {Math.min(activeIdx + 1, lines.length)} of {lines.length}
           </button>
           <button
             onClick={undoLastTap}
@@ -1190,12 +1312,12 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
         </div>
 
         <div style={{ background: COLORS.surfaceRaised, border: `1px solid ${COLORS.border}`, borderRadius: RADIUS.xl, boxShadow: ELEVATION.sm, maxHeight: 340, overflowY: "auto" }}>
-          {track.lines.map((line, i) => (
+          {lines.map((line, i) => (
             <div
               key={i}
               style={{
                 display: "flex", alignItems: "center", gap: SPACE.sm, padding: `${SPACE.md}px ${SPACE.lg}px`,
-                borderBottom: i < track.lines.length - 1 ? `1px solid ${COLORS.border}` : "none",
+                borderBottom: i < lines.length - 1 ? `1px solid ${COLORS.border}` : "none",
                 background: i === activeIdx ? COLORS.primarySoft : "transparent",
                 transition: `background ${MOTION.fast}`,
               }}
@@ -1203,7 +1325,23 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
               <div style={{ width: 20 }}>
                 {timestamps[i] !== null ? <Check size={15} color={COLORS.primary} /> : <span style={{ color: COLORS.textFaint, fontSize: 12 }}>{i + 1}</span>}
               </div>
-              <div style={{ flex: 1, fontFamily: TYPE.display, fontSize: 15, color: i === activeIdx ? COLORS.textPrimary : COLORS.textMuted }}>{line}</div>
+              <input
+                value={line}
+                onChange={(e) => editLine(i, e.target.value)}
+                title="Edit this line's text — a mistranscribed word, for example"
+                style={{
+                  flex: 1, fontFamily: TYPE.display, fontSize: 15, color: i === activeIdx ? COLORS.textPrimary : COLORS.textMuted,
+                  background: "transparent", border: "none", outline: "none", padding: 0, minWidth: 0,
+                }}
+              />
+              <button
+                onClick={() => removeLine(i)}
+                title="Remove this line"
+                aria-label="Remove this line"
+                style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", padding: 2, display: "flex" }}
+              >
+                <X size={13} />
+              </button>
 
               {timestamps[i] !== null && (
                 <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -1239,12 +1377,14 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
             </div>
           ))}
         </div>
+        </>
+        )}
 
         <div style={{ display: "flex", gap: SPACE.md, marginTop: SPACE["2xl"], flexWrap: "wrap" }}>
           <button onClick={onCancel} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.5 : 1 }}>Back</button>
           <button
             disabled={!allTagged || busy}
-            onClick={() => onDone(timestamps)}
+            onClick={() => onDone(timestamps, lines)}
             style={{ ...primaryBtn, flex: 1, minWidth: 180, opacity: allTagged && !busy ? 1 : 0.4, cursor: allTagged && !busy ? "pointer" : "not-allowed" }}
           >
             {busy && <Loader2 size={14} className="spin" />}
@@ -1252,7 +1392,9 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
               ? "Uploading & publishing…"
               : allTagged
               ? "Publish track"
-              : `${taggedCount}/${track.lines.length} lines tagged`}
+              : lines.length
+              ? `${taggedCount}/${lines.length} lines tagged`
+              : "Add lyrics to continue"}
           </button>
         </div>
         {errorMessage && (
@@ -1979,25 +2121,28 @@ export default function App() {
           onCancel={() => setView("upload")}
           busy={publishing}
           errorMessage={publishError}
-          onDone={async (timestamps) => {
+          onDone={async (timestamps, lines) => {
             setPublishing(true);
             setPublishError("");
             try {
               // Files are already uploaded (see PreparingScreen) — this step
               // just writes the finished, timestamped track to Firestore.
+              // `lines` comes back from SyncScreen rather than draftTrack —
+              // it may have been auto-written from the audio, or hand-edited,
+              // after the upload step.
               const id = await createTrack({
                 title: draftTrack.title,
                 artist: draftTrack.artist,
                 artistUid: user.uid,
                 genre: draftTrack.genre,
                 tags: draftTrack.tags,
-                lines: draftTrack.lines,
+                lines,
                 timestamps,
                 coverURL: draftTrack.coverURL,
                 audioURL: draftTrack.audioURL,
               });
 
-              openTrackAt({ ...draftTrack, id, timestamps, likesCount: 0 }, undefined);
+              openTrackAt({ ...draftTrack, id, lines, timestamps, likesCount: 0 }, undefined);
               setDraftTrack(null);
             } catch (err) {
               setPublishError(err.message || "Publishing failed. Please try again.");

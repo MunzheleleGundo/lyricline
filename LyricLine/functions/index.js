@@ -162,6 +162,23 @@ function normalizeWord(w) {
   return w.toLowerCase().replace(/[^a-z0-9']/g, "");
 }
 
+// AssemblyAI's Universal model transcribes ~99 languages, but that list is
+// still finite — plenty of real languages aren't on it. When the audio is
+// in a language AssemblyAI doesn't support, language_detection doesn't
+// fail; it just picks whatever supported language sounds closest and
+// transcribes invented words in THAT language. The result looks like a
+// normal transcript (so nothing here throws), but every word in it is
+// wrong, which is why alignment can look "off" no matter how good the
+// matching logic is. This is the current (mid-2026) supported set for
+// pre-recorded transcription — check AssemblyAI's docs if it's been
+// expanded since.
+const ASSEMBLYAI_SUPPORTED_LANGUAGES = new Set([
+  "en", "es", "fr", "de", "it", "pt", "nl", "pl", "ru", "tr", "uk", "ca",
+  "id", "ja", "ar", "az", "bg", "bs", "zh", "cs", "da", "el", "et", "fi",
+  "tl", "gl", "hi", "hr", "hu", "ko", "mk", "ms", "no", "ro", "sk", "sv",
+  "th", "ur", "vi",
+]);
+
 async function transcribeWithTimestamps(audioURL, apiKey) {
   const startResp = await fetch("https://api.assemblyai.com/v2/transcript", {
     method: "POST",
@@ -180,7 +197,14 @@ async function transcribeWithTimestamps(audioURL, apiKey) {
       headers: { authorization: apiKey },
     });
     const data = await pollResp.json();
-    if (data.status === "completed") return data.words || [];
+    if (data.status === "completed") {
+      return {
+        words: data.words || [],
+        languageCode: data.language_code || null,
+        languageConfidence: typeof data.language_confidence === "number" ? data.language_confidence : null,
+        supported: ASSEMBLYAI_SUPPORTED_LANGUAGES.has((data.language_code || "").split("_")[0]),
+      };
+    }
     if (data.status === "error") throw new Error(`Transcription error: ${data.error}`);
     await new Promise((r) => setTimeout(r, 3000));
   }
@@ -188,10 +212,10 @@ async function transcribeWithTimestamps(audioURL, apiKey) {
 }
 
 // Greedy forward alignment: for each lyric line, find the earliest matching
-// transcript word (searching forward from the last match) for the FIRST
-// word of that line. Lines whose first word can't be confidently matched
-// fall back to interpolating between their nearest matched neighbors, so
-// every line still gets a reasonable timestamp.
+// transcript span (searching forward from the last match) for the lyric
+// line's opening words. Lines whose opening words can't be confidently
+// matched fall back to interpolating between their nearest matched
+// neighbors, so every line still gets a reasonable timestamp.
 //
 // This is deliberately conservative: an earlier version also accepted a
 // "fuzzy" match on any nearby word with the same first letter and similar
@@ -200,7 +224,17 @@ async function transcribeWithTimestamps(audioURL, apiKey) {
 // timestamps all clustered within a second or two of each other — worse
 // than just admitting the line couldn't be matched. Only exact word matches
 // are trusted now; anything else is left null and smoothed by interpolation.
+//
+// Matching on the first word ALONE isn't enough: repetitive lyrics (a
+// repeated chorus, or just common short words like "u"/"o"/"ene" recurring
+// throughout a song) mean the first word alone matches dozens of unrelated
+// spots in the transcript. Confirming that a line's first two-to-three
+// words appear together, in order, is what actually identifies "this is
+// really where that line starts" — a single stray word match doesn't get
+// trusted, so it can't send the cursor jumping to the wrong minute of the
+// song and dragging every later line's search along with it.
 const MIN_LINE_GAP_SEC = 0.35; // real lyric lines are essentially never this close together
+const CONFIRM_WORDS = 3; // how many of a line's leading words must match in sequence
 
 function alignLinesToWords(lines, words) {
   const transcriptTokens = words.map((w) => normalizeWord(w.text));
@@ -209,11 +243,26 @@ function alignLinesToWords(lines, words) {
   const rawTimestamps = lines.map(() => null);
 
   lines.forEach((line, lineIdx) => {
-    const firstWord = normalizeWord((line.split(/\s+/)[0] || ""));
-    if (!firstWord) return;
+    const lineWords = line.split(/\s+/).map(normalizeWord).filter(Boolean);
+    if (!lineWords.length) return;
+    const needed = lineWords.slice(0, Math.min(CONFIRM_WORDS, lineWords.length));
+
     const searchLimit = Math.min(transcriptTokens.length, cursor + 250);
     for (let i = cursor; i < searchLimit; i++) {
-      if (transcriptTokens[i] !== firstWord) continue;
+      if (transcriptTokens[i] !== needed[0]) continue;
+
+      // Confirm the following words line up too — a lone matching word,
+      // especially a short/common one, isn't enough to trust.
+      let confirmed = true;
+      for (let k = 1; k < needed.length; k++) {
+        if (transcriptTokens[i + k] !== needed[k]) { confirmed = false; break; }
+      }
+      // If the line is too short to give us CONFIRM_WORDS to check, at
+      // least require the single word not be a very common short token —
+      // those are exactly the ones that produce false positives.
+      if (needed.length < CONFIRM_WORDS && needed[0].length <= 2) confirmed = false;
+      if (!confirmed) continue;
+
       const candidateTime = words[i].start / 1000;
       // A match that lands suspiciously close to the previous accepted
       // line is more likely the aligner grabbing a stray nearby word than
@@ -226,6 +275,8 @@ function alignLinesToWords(lines, words) {
       return;
     }
   });
+
+  const matchedCount = rawTimestamps.filter((t) => t !== null).length;
 
   // Fill unmatched lines by interpolating between the nearest matched
   // neighbors so the output is always a complete, monotonic timestamp array.
@@ -241,8 +292,66 @@ function alignLinesToWords(lines, words) {
     const span = nextIdx - prevIdx;
     filled[i] = +(prevVal + ((nextVal - prevVal) * (i - prevIdx)) / span).toFixed(2);
   }
-  return filled;
+  return { timestamps: filled, matchedCount, totalLines: lines.length };
 }
+
+// Groups a flat word-timestamp list into draft lyric lines by listening for
+// pauses — a gap between words longer than a real singer would leave
+// mid-phrase almost always means a line (or at least a breath) ended.
+// This is a draft, not a claim of ground truth: the point is to save the
+// person from typing the whole song, not to replace their judgment. They
+// review and fix it afterward, same as the auto-sync timestamps.
+const LINE_BREAK_GAP_SEC = 0.55;
+const MAX_WORDS_PER_LINE = 12; // long silence-free runs still get soft-broken so lines stay readable
+
+function groupWordsIntoLines(words) {
+  const lines = [];
+  let current = [];
+
+  words.forEach((w, i) => {
+    const prev = words[i - 1];
+    const gap = prev ? w.start / 1000 - prev.end / 1000 : 0;
+    const forcedBreak = current.length >= MAX_WORDS_PER_LINE;
+    if (current.length && (gap >= LINE_BREAK_GAP_SEC || forcedBreak)) {
+      lines.push(current.map((t) => t.text).join(" "));
+      current = [];
+    }
+    current.push(w);
+  });
+  if (current.length) lines.push(current.map((t) => t.text).join(" "));
+
+  return lines.filter(Boolean);
+}
+
+exports.transcribeLyrics = onRequest(
+  { secrets: [ASSEMBLYAI_API_KEY], timeoutSeconds: 300, cors: true },
+  withCors(async (req, res) => {
+    try {
+      await requireAuth(req);
+      const { audioURL } = req.body || {};
+      if (!audioURL) return res.status(400).json({ error: "Body must include audioURL." });
+
+      const { words, languageCode, supported } = await transcribeWithTimestamps(audioURL, ASSEMBLYAI_API_KEY.value());
+      if (!words.length) throw new Error("Transcription returned no words — the audio may be silent or unreadable.");
+
+      const lines = groupWordsIntoLines(words);
+
+      // Same honesty as alignLyrics: say plainly when the transcript is
+      // likely wrong-language guesswork rather than real lyrics, so a
+      // person doesn't publish a track full of invented words.
+      const warning = !supported
+        ? `The vocals may be in a language our transcription engine doesn't support` +
+          (languageCode ? ` (it detected "${languageCode}", but likely guessed)` : "") +
+          `. This draft is probably not your real lyrics — expect to rewrite most of it, or type them in by hand instead.`
+        : null;
+
+      res.json({ lines, languageCode, warning });
+    } catch (err) {
+      logger.error("transcribeLyrics failed", err);
+      res.status(err.status || 500).json({ error: err.message || "Auto-write failed." });
+    }
+  })
+);
 
 exports.alignLyrics = onRequest(
   { secrets: [ASSEMBLYAI_API_KEY], timeoutSeconds: 300, cors: true },
@@ -254,11 +363,29 @@ exports.alignLyrics = onRequest(
         return res.status(400).json({ error: "Body must include audioURL and a non-empty lines array." });
       }
 
-      const words = await transcribeWithTimestamps(audioURL, ASSEMBLYAI_API_KEY.value());
+      const { words, languageCode, languageConfidence, supported } =
+        await transcribeWithTimestamps(audioURL, ASSEMBLYAI_API_KEY.value());
       if (!words.length) throw new Error("Transcription returned no words — the audio may be silent or unreadable.");
 
-      const timestamps = alignLinesToWords(lines, words);
-      res.json({ timestamps, wordCount: words.length });
+      const { timestamps, matchedCount, totalLines } = alignLinesToWords(lines, words);
+      const matchedFraction = totalLines ? matchedCount / totalLines : 0;
+
+      // Tell the frontend plainly when auto-sync's input was likely garbage,
+      // instead of returning confidently-wrong timestamps with no signal
+      // that anything was off. Two independent smells: AssemblyAI detected
+      // a language it doesn't actually support (so it transcribed the
+      // closest supported language instead), or very few lines could be
+      // confidently matched at all (garbage transcript either way).
+      let warning = null;
+      if (!supported) {
+        warning = `The vocals may be in a language our transcription engine doesn't support` +
+          (languageCode ? ` (it detected "${languageCode}", but likely guessed — that's not one of its supported languages)` : "") +
+          `. Auto-sync is transcribing something, but it's probably not your actual lyrics. Manual tap-to-sync will be more reliable for this track.`;
+      } else if (matchedFraction < 0.5) {
+        warning = `Only ${matchedCount} of ${totalLines} lines could be confidently matched to the audio — the rest were estimated by interpolation and may be off. Worth reviewing (or re-tapping) those by hand.`;
+      }
+
+      res.json({ timestamps, wordCount: words.length, languageCode, matchedCount, totalLines, warning });
     } catch (err) {
       logger.error("alignLyrics failed", err);
       res.status(err.status || 500).json({ error: err.message || "Auto-sync failed." });

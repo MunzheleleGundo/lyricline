@@ -38,11 +38,20 @@ export async function resolveYouTubeChannel(input) {
   return authedFetch(`youtubeResolveChannel?input=${encodeURIComponent(input)}`);
 }
 
+export async function autoWriteLyrics(audioURL) {
+  const data = await authedFetch("transcribeLyrics", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ audioURL }),
+  });
+  return { lines: data.lines || [], warning: data.warning || null };
+}
+
 export async function autoAlignLyrics(audioURL, lines) {
   const data = await authedFetch("alignLyrics", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ audioURL, lines }),
   });
-  return data.timestamps || [];
+  return { timestamps: data.timestamps || [], warning: data.warning || null };
 }
