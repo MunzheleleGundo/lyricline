@@ -1108,6 +1108,14 @@ function SyncScreen({ track, onDone, onCancel, busy, errorMessage }) {
 
   useEffect(() => {
     const onKey = (e) => {
+      // Don't hijack these keys while someone's typing — e.g. editing a
+      // lyric line's text, or the manual-entry textarea. Without this,
+      // Space can't be typed at all (it's swallowed as "tap the line")
+      // and Backspace deletes the last *tap* instead of a character.
+      const tag = e.target?.tagName;
+      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable;
+      if (isTyping) return;
+
       if (e.code === "Space") {
         e.preventDefault();
         tapLine();
